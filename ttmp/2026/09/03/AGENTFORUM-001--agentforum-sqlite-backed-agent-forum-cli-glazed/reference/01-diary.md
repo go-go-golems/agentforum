@@ -19,6 +19,8 @@ RelatedFiles:
       Note: Glazed root + AppName env loading + openService (commit cbdc6a6)
     - Path: repo://internal/cli/subforum.go
       Note: subforum list/create/show/watch/unwatch (commit a01d81c)
+    - Path: repo://internal/cli/thread.go
+      Note: thread create/list/show/watch/unwatch (commit b8f9ea2)
     - Path: repo://internal/service/agents.go
       Note: Register/ResolveAgent/UpdateMe business rules (commit dbf44e4)
     - Path: repo://internal/service/subforums.go
@@ -27,14 +29,19 @@ RelatedFiles:
       Note: agent CRUD + token-hash lookup (commit dbf44e4)
     - Path: repo://internal/store/migrations.go
       Note: embedded migration runner (commit cbdc6a6)
+    - Path: repo://internal/store/posts.go
+      Note: atomic CreatePost + ListPosts (commit b8f9ea2)
     - Path: repo://internal/store/store.go
       Note: SQLite open with WAL/busy_timeout/FK (commit cbdc6a6)
+    - Path: repo://internal/store/threads.go
+      Note: atomic CreateThreadWithPost (commit b8f9ea2)
 ExternalSources: []
 Summary: 'Implementation diary for agentforum: chronological record of each phase, what changed, what failed, and how to validate.'
 LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 
@@ -285,3 +292,65 @@ threads (P4) have a home and the watched-subforum event reason (P5) has a basis.
 
 ### Technical details
 - Subforum key regex: `^[a-z0-9][a-z0-9-]{0,62}$` (max 63 chars). Watch table PK (agent_id, subforum_key).
+
+## Step 5: P4 threads & posts
+
+This phase made the forum usable: opening a thread creates the thread and its
+first post atomically, posting replies makes the author a participant, threads
+list/show, and thread watch/unwatch. Crucially, the write path for `events` and
+`metadata_terms` lives here so P5 (events read) and P6 (metadata query) never
+need a backfill.
+
+**Commit (code):** b8f9ea2 — "feat(agentforum): P4 threads & posts …"
+
+### What I did
+- `internal/store/dbtx.go`: small interface satisfied by `*sql.DB`/`*sql.Tx` so atomic writers share helpers.
+- `internal/store/metadata.go`: `flattenMetadata` (dotted keys, array→repeated-key) + `indexMetadataTermsTx` (delete-then-insert) + exported `IndexMetadataTerms`.
+- `internal/store/events.go`: `appendEventTx` (autoincrement sequence) + `AppendEvent`.
+- `internal/store/participants.go`: `upsertParticipantTx` (ON CONFLICT DO UPDATE), `IsParticipant`, `ListParticipantThreadIDs`.
+- `internal/store/watches.go`: `watchThreadTx`/`WatchThread`/`UnwatchThread`/`IsWatchingThread`/`ListWatchingThreadIDs`.
+- `internal/store/threads.go`: `CreateThreadWithPost` (atomic: thread+post+participant+terms(thread,post)+events(thread.created,post.created)+optional watch), `GetThread`, `ListThreads` (subforum/involved/watching/limit), `BumpThreadUpdatedAt`, `scanThread`.
+- `internal/store/posts.go`: `CreatePost` (atomic: post+participant+terms+event+bump updated_at via `UPDATE … RETURNING`), `GetPost`, `ListPosts` (after-post by created_at), `scanPost`.
+- `internal/service/threads.go`: `CreateThread` (validates title/subforum/metadata, resolves subforum), `ListThreads` (maps involved/watching to agent), `GetThread`, `WatchThread`/`UnwatchThread`.
+- `internal/service/posts.go`: `CreatePost` (reply_to same-thread check), `ListPosts`, `GetPost`.
+- `internal/cli/thread.go`: create/list/show/watch/unwatch; `threadRow`/`postRow` with `kind` discriminator; `thread show` emits thread then posts (--after-post/--limit).
+- `internal/cli/post.go`: `post create` (--body/--body-file/--reply-to/--metadata-file/--meta/--keyword).
+- `internal/cli/helpers.go`: `applyKeywords` (append to metadata.keywords).
+- `internal/service/threads_test.go`: atomic create (asserts 2 events + thread terms), involved/watching listing, reply_to cross-thread/missing, missing-thread.
+
+### Why
+- Atomicity in the store layer (not the service) guarantees no partial thread is ever visible even if a statement mid-bundle fails.
+- Writing events + metadata_terms at creation avoids any P5/P6 backfill migration — the read layers are additive.
+
+### What worked
+- Roundtrip green: alice creates (metadata `transcript_id`/`ticket`/2 keywords`+watch) → thread+post atomically; `list --involved` shows it with full metadata JSON; bob (0 involved) posts → bob now involved; `thread show` → 3 rows (thread+2 posts); reply_to missing→`not found`, cross-thread→`invalid input`; `metadata_terms` flattened correctly (array→multiple rows); 3 `events` in sequence; participants + watch recorded.
+- `go test ./...` + `go vet` clean.
+
+### What didn't work
+- Struct literal typo: wrote `models.MetadataTerm{Key: prefix, fmt.Sprintf(...)}` (missing `Value:`) on 5 lines → "mixture of field:value and value elements". The string case (with `Value: t`) compiled, which made the others' missing `Value:` obvious once I `cat -A`'d the lines.
+- Tried to mount P4 commands with a `[]struct{cmd;err}` literal containing multi-return calls — Go can't unpack multi-return in a composite literal. Reverted to explicit `add()` calls.
+- First P4 manual test used `--ticket` (a P6 *list* filter) on `thread create`; create takes `--meta ticket=…`. Fixed the test.
+
+### What I learned
+- `UPDATE … RETURNING 1` keeps the thread updated_at bump inside the post tx and surfaces a missing thread as a real error instead of a silent no-op.
+- ULID `created_at` ordering + `id ASC` tiebreaker makes `--after-post` pagination stable.
+
+### What was tricky to build
+- Keeping `CreateThreadWithPost` and `CreatePost` fully transactional while reusing `upsertParticipantTx`/`indexMetadataTermsTx`/`appendEventTx`/`watchThreadTx` — solved with the `dbtx` interface so the same helpers run on the tx.
+- `ListThreads` "involved" = creator OR participant OR watcher, assembled as one parameterized `WHERE` with three `?` for the same agent id.
+
+### What warrants a second pair of eyes
+- The atomic writers use a single connection (`SetMaxOpenConns(1)` from P1). A long P5 long-poll read holds the connection; verify it does not block a concurrent writer (WAL should make reads non-blocking, but the single-conn pool defeats that — flag for P5).
+- `ListPosts` after-post filters by `created_at > after.created_at`; two posts with identical nanosecond timestamps could skip the after-post itself but include its peers. ULIDs make this near-impossible; document it.
+
+### What should be done in the future
+- Revisit `SetMaxOpenConns` for read concurrency once P5 long-poll lands (maybe read-only pool + writer connection).
+- Add `thread update` (title/metadata) reusing the store's bump + reindex.
+
+### Code review instructions
+- Start in `internal/store/threads.go` (`CreateThreadWithPost`) and `internal/store/posts.go` (`CreatePost`) for the atomicity guarantees.
+- Validate: `make test`; then the P4 roundtrip (create→list-involved→reply→show→metadata_terms→events).
+
+### Technical details
+- Atomic bundle (create thread): thread + post + participant + 2 terms indexes + 2 events + optional watch, one `BEGIN/COMMIT`.
+- `kind` column distinguishes thread vs post rows in `thread show`/`thread create` output.

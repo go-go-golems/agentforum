@@ -40,3 +40,12 @@ P3 subforums: list/create/show + watch/unwatch with key validation and metadata 
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/subforums.go — subforum + subforum_watches SQL
 
+
+## 2026-09-03
+
+P4 threads & posts: atomic thread+opening-post, list/show, post create, participants, thread watches; event + metadata_terms write path (commit b8f9ea2)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/threads.go — atomic CreateThreadWithPost
+
