@@ -340,3 +340,63 @@ The feedback arrived between the W4 build and its commit, so W4 landed as one co
 ### Technical details
 - Commit: fdcdd9b (includes both the core screens and the restyle). Deps added: `marked`, `@mathjax/src`, `@mathjax/mathjax-newcm-font`, `dompurify` (+ types).
 - Live check result: `{mathCount: 2, strongCount: 1, liCount: 2, codeHighlighted: 1, copyBtns: 1, dollarOk: 1}`.
+
+## Step 6: W5 — inbox screen (unified event stream over long-poll)
+
+This step delivered the UI face of the unified inbox: a `useEventStream`
+hook that keeps one forward-only cursor per agent and long-polls
+`GET /v1/events`, plus the InboxScreen that renders the stream flat with
+reason badges and a durable ack. Verified live with two agents: the
+inbox cursor advanced 2 → 5 while the page was open as the other agent
+posted. Screenshots for the diary and the future project report are
+archived in `screens/`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "take screenshots as you go for the diary, and for our future project report."
+
+(Following the phase directive from Step 2; the screenshot instruction applies from here on.)
+
+**Assistant interpretation:** Continue W5 (inbox screen) and capture browser screenshots at each meaningful state, archiving them in the ticket for the diary and the eventual project report.
+
+**Inferred user intent:** The visual record of the UI evolution is part of the deliverable — the future vault report should be able to show the register screen, thread lists, markdown/math rendering, and the live inbox without re-running anything.
+
+### What I did
+- `web/src/hooks/useEventStream.ts`: cursor persisted per agent (`agentforum.cursor.<agentId>`, bigint-safe), `wait=25` long-poll loop with a 500 ms pause between polls, at-least-once delivery with dedupe by `sequence`, connected/error state, cancellation-safe teardown; `useAckEvents` for the durable ack.
+- `web/src/components/pages/InboxScreen/InboxScreen.tsx`: flat list (reason word with tone — involved/watching/subforum —, actor, `subforum/thread`, timestamp), live indicator, cursor readout, "ack through N" button, click-through to the source thread. Route wired in App.tsx (replacing the W3 stub).
+- Live two-agent verification (browser as bob, curl as alice): bob's inbox showed the two pre-existing events (cursor 2, reason "watching"); alice then replied in the watched thread and started a new thread in the watched subforum; both arrived within one poll cycle, cursor advanced to 5, reasons rendered as "watching" and "subforum" respectively.
+- Screenshots archived to `ttmp/…/screens/`: `w3-register-screen.png`, `w3-subforum-list.png`, `w4-thread-list-ir.png`, `w4-thread-detail-markdown-math.png`, `w4-markdown-math-verified.png`, `w5-inbox-live.png`, `w5-inbox-live-update.png`.
+
+### Why
+Design §7.4: the inbox is the UI face of the cursor contract; the loop is a hook (not an RTK endpoint) because long-poll responses are batches with a cursor, not cacheable query results.
+
+### What worked
+- The full pipeline held end to end: proto events (bigint sequences) → long-poll → fromJson → bigint cursor persistence → flat rendering; both reason types displayed with distinct tones.
+- Event click-through to the thread (and the thread's MathJax rendering) worked in the same navigation chain as the inbox update.
+
+### What didn't work
+- `EventReason.EVENT_REASON_WATCHING` does not exist in the generated TS: protoc-gen-es strips the enum-value prefix (`EventReason.WATCHING`). Also enums are runtime values, so `import type` failed — switched to a value import.
+- A `find /` for the playwright output dir was aborted (user pointed out the screenshots were in the repo root — playwright's relative paths resolve to the invocation cwd). Moved them from there; noted for future phases.
+
+### What I learned
+- protoc-gen-es enum naming: `EVENT_REASON_WATCHED_SUBFORUM = 3` becomes `EventReason.WATCHED_SUBFORUM` — the common prefix is dropped. Worth remembering for every future enum consumer.
+
+### What was tricky to build
+- Keeping the loop cancellation-safe while the cursor lives in a ref: the effect owns the loop, the ref survives re-renders, and localStorage re-hydrates per agent. Dedupe uses stringified sequences (bigint Set keys would also work; strings match the persisted form).
+
+### What warrants a second pair of eyes
+- The 500 ms inter-poll pause: with `wait=25` the loop is effectively continuous; confirm the pause does not cause a missed-event window beyond the acceptable at-least-once semantics (it cannot — the cursor is only advanced after a successful parse).
+- `useAckEvents` fires a raw fetch (not RTK) — deliberate (ack is a side effect, not cached state), but confirm no double-fire on re-render in review.
+
+### What should be done in the future
+- W6: search + metadata filters (MetadataFilterPanel from AdvancedSearchPanel).
+- Inbox: unread marker/badge count in the menubar once events accumulate.
+- Consider `visibilitychange` to pause the loop in background tabs.
+
+### Code review instructions
+- Start: `web/src/hooks/useEventStream.ts` (the loop + cursor rules), then `InboxScreen.tsx`.
+- Validate: `cd web && pnpm check && pnpm test && pnpm build`; live flow per this step (screenshots in `screens/`).
+
+### Technical details
+- Commit: 6c2a0c7.
+- Live observation: cursor 2 → 5; events: watching×3 (thread + opening post + reply in "Caching investigation"), subforum×2 (thread + opening post in "Stale entries after deploy").

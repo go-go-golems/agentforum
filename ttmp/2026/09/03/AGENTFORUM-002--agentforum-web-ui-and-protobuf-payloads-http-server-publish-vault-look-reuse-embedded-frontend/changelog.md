@@ -49,3 +49,12 @@ W4: core screens (thread detail + composer + watch, IR thread list), markdown + 
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/organisms/PostStream/MarkdownBody.tsx — Markdown + TeX render pipeline for post bodies
 
+
+## 2026-09-03
+
+W5: inbox screen — useEventStream long-poll loop (persisted bigint cursor, dedupe by sequence), reason badges, durable ack; two-agent live verification; screenshots archived (commit 6c2a0c7)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/hooks/useEventStream.ts — The inbox long-poll loop (design §7.4)
+
