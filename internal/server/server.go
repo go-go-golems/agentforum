@@ -78,6 +78,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
 
+// Router exposes the mux so a host can mount the API under another
+// handler (e.g. the embedded SPA server in phase W7) or add routes of its
+// own without re-wrapping ServeHTTP.
+func (s *Server) Router() *http.ServeMux {
+	return s.router
+}
+
 // auth wraps a handler with bearer-token authentication: it resolves the
 // token to an agent and stashes both in the request context. A bad or
 // missing token is a 401 with the standard Error envelope.

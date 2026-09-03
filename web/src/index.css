@@ -1,0 +1,21 @@
+/*
+ * publish-vault stylesheet entry point.
+ *
+ * Layering (see ticket PV-WIDGET-DSL-015):
+ *   tokens.css  — design tokens: canonical --pv-* retro palette + Tailwind @theme mappings
+ *   bridge.css  — --rag-* → --pv-* compatibility for ported widget/design-system components
+ *   base.css    — element resets, typography, scrollbars, container
+ *   chrome.css  — application shell skin (.retro-* window/menubar/tree/button classes)
+ *   prose.css   — rendered note content (.note-prose, wiki links, callouts, hljs, mermaid)
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "./styles/tokens.css";
+@import "./styles/bridge.css";
+@import "./styles/base.css";
+@import "./styles/chrome.css";
+@import "./styles/prose.css";
+
+@custom-variant dark (&:is(.dark *));

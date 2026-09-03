@@ -12,3 +12,7 @@
 # editor / OS noise
 .DS_Store
 *.swp
+web/dist/
+web/node_modules/
+web/.vite/
+agentforum-w3-threadlist.png
