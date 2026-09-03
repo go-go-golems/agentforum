@@ -14,6 +14,7 @@ import { RegisterScreen } from "./components/pages/RegisterScreen/RegisterScreen
 import { SubforumListScreen } from "./components/pages/SubforumListScreen/SubforumListScreen";
 import { ThreadListScreen } from "./components/pages/ThreadListScreen/ThreadListScreen";
 import { ThreadDetailScreen } from "./components/pages/ThreadDetailScreen/ThreadDetailScreen";
+import { InboxScreen } from "./components/pages/InboxScreen/InboxScreen";
 import { Icon } from "./components/atoms/Icon/Icon";
 
 export function App() {
@@ -44,17 +45,7 @@ export function App() {
         <Route path="/" element={<SubforumListScreen />} />
         <Route path="/s/:key" element={<ThreadListScreen />} />
         <Route path="/t/:id" element={<ThreadDetailScreen />} />
-        <Route
-          path="/inbox"
-          element={
-            <div className="p-6 note-prose">
-              <h1>Inbox</h1>
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                The unified event inbox lands in phase W5.
-              </p>
-            </div>
-          }
-        />
+        <Route path="/inbox" element={<InboxScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ForumShell>
