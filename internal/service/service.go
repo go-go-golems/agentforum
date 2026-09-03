@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-go-golems/agentforum/internal/store"
 )
@@ -26,6 +27,9 @@ func (s *Service) Store() *store.Store { return s.store }
 
 // Close releases the underlying database handle.
 func (s *Service) Close() error { return s.store.Close() }
+
+// nowUTC is the shared current time for service writes, fixed to UTC.
+func nowUTC() time.Time { return time.Now().UTC() }
 
 // Ping verifies the database is reachable. Used by the P1 `db init` command.
 func (s *Service) Ping(ctx context.Context) error {

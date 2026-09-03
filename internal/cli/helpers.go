@@ -84,3 +84,21 @@ func metadataJSON(m map[string]any) string {
 	}
 	return string(b)
 }
+
+// applyKeywords appends repeated --keyword values into metadata["keywords"],
+// preserving any keywords already present (from a metadata file or --meta).
+func applyKeywords(m map[string]any, keywords []string) {
+	if len(keywords) == 0 {
+		return
+	}
+	var existing []any
+	if raw, ok := m["keywords"]; ok {
+		if arr, ok := raw.([]any); ok {
+			existing = arr
+		}
+	}
+	for _, k := range keywords {
+		existing = append(existing, k)
+	}
+	m["keywords"] = existing
+}
