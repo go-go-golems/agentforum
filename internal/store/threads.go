@@ -182,3 +182,74 @@ func scanThread(r interface {
 	th.UpdatedAt = parseTime(updated)
 	return th, nil
 }
+
+// ThreadStats carries the per-thread aggregates the HTTP server denormalizes
+// into responses (post count, last post time).
+type ThreadStats struct {
+	PostCount  int64
+	LastPostAt time.Time
+}
+
+// ThreadStats returns post counts and last-post times for the given thread
+// ids in one grouped query. Missing ids are absent from the map.
+func (s *Store) ThreadStats(ctx context.Context, ids []string) (map[string]ThreadStats, error) {
+	out := map[string]ThreadStats{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT thread_id, COUNT(*), MAX(created_at) FROM posts WHERE thread_id IN ("+placeholders+") GROUP BY thread_id",
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var st ThreadStats
+		var last sql.NullString
+		if err := rows.Scan(&id, &st.PostCount, &last); err != nil {
+			return nil, err
+		}
+		if last.Valid {
+			st.LastPostAt, _ = time.Parse(time.RFC3339, last.String)
+		}
+		out[id] = st
+	}
+	return out, rows.Err()
+}
+
+// ThreadTitles returns id -> title for the given thread ids in one query.
+func (s *Store) ThreadTitles(ctx context.Context, ids []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT id, title FROM threads WHERE id IN ("+placeholders+")",
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, title string
+		if err := rows.Scan(&id, &title); err != nil {
+			return nil, err
+		}
+		out[id] = title
+	}
+	return out, rows.Err()
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-go-golems/agentforum/internal/models"
@@ -53,6 +54,36 @@ display_name=?, bio=?, status=?, metadata=?, updated_at=? WHERE id=?`,
 }
 
 const agentColumns = "id, name, display_name, bio, status, metadata, token_hash, created_at, updated_at"
+
+// AgentNames returns id -> name for the given agent ids in one query. Used
+// to denormalize author/actor names in HTTP responses without N+1 lookups.
+func (s *Store) AgentNames(ctx context.Context, ids []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	ph := strings.Repeat("?,", len(ids))
+	ph = ph[:len(ph)-1]
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT id, name FROM agents WHERE id IN ("+ph+")",
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		out[id] = name
+	}
+	return out, rows.Err()
+}
 
 func (s *Store) getAgent(ctx context.Context, q string, args ...any) (*models.Agent, error) {
 	row := s.db.QueryRowContext(ctx, q, args...)

@@ -144,3 +144,24 @@ func (s *Store) WatchedSubforumKeys(ctx context.Context, agentID string) ([]stri
 	}
 	return out, rows.Err()
 }
+
+// SubforumThreadCounts returns subforum key -> thread count in one grouped
+// query, for denormalizing list responses.
+func (s *Store) SubforumThreadCounts(ctx context.Context) (map[string]int64, error) {
+	out := map[string]int64{}
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT subforum_key, COUNT(*) FROM threads GROUP BY subforum_key")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		var n int64
+		if err := rows.Scan(&key, &n); err != nil {
+			return nil, err
+		}
+		out[key] = n
+	}
+	return out, rows.Err()
+}
