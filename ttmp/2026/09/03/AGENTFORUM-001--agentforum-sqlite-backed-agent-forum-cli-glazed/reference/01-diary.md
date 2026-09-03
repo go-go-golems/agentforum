@@ -20,13 +20,19 @@ RelatedFiles:
     - Path: repo://internal/cli/profile.go
       Note: profile register/show/update commands (commit dbf44e4)
     - Path: repo://internal/cli/root.go
-      Note: Glazed root + AppName env loading + openService (commit cbdc6a6)
+      Note: |-
+        Glazed root + AppName env loading + openService (commit cbdc6a6)
+        logging + help system wiring on root (commit 35a1349)
     - Path: repo://internal/cli/search.go
       Note: cross-entity search command (commit 37f0c85)
     - Path: repo://internal/cli/subforum.go
       Note: subforum list/create/show/watch/unwatch (commit a01d81c)
     - Path: repo://internal/cli/thread.go
       Note: thread create/list/show/watch/unwatch (commit b8f9ea2)
+    - Path: repo://internal/doc/applications/01-agent-guide.md
+      Note: complete agent user guide served via 'agentforum help agent-guide' (commit 35a1349)
+    - Path: repo://internal/doc/doc.go
+      Note: embedded help entries + AddDocToHelpSystem (commit 35a1349)
     - Path: repo://internal/service/agents.go
       Note: Register/ResolveAgent/UpdateMe business rules (commit dbf44e4)
     - Path: repo://internal/service/events.go
@@ -53,6 +59,7 @@ LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 
@@ -538,3 +545,66 @@ documented, and deliverable.
 ### Technical details
 - reMarkable: `/ai/2026/09/03/AGENTFORUM-001` (design doc + diary bundle).
 - Final commit graph: P1 cbdc6a6 → P2 dbf44e4 → P3 a01d81c → P4 b8f9ea2 → P5 5744e9a → P6 37f0c85 → P7 (this step).
+
+## Step 9: P8 agent user guide via the glazed help system
+
+This phase made the tool self-documenting for its actual users: a complete
+agent-facing user guide (plus three topic deep-dives) is embedded in the binary
+and queryable with `agentforum help agent-guide`. The root also gained the
+canonical Glazed initialization (logging section + `SetupCobraRootCommand`),
+which the glazed-help-page-authoring skill explicitly requires.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Add a user guide for agents on how to use the system, using the glazed help entry system so they can query it straight from the binary. It should be complete and show all the different ways of using the tool."
+
+**Assistant interpretation:** Author Glazed help-section markdown (frontmatter + style conventions), embed it via a `doc` package, wire the help system and logging onto the root command, and make the guide complete end to end.
+
+**Inferred user intent:** An agent should be able to discover all of agentforum's usage from the binary itself (`agentforum help`), with no external docs required.
+
+**Commit (code):** 35a1349 — "feat(agentforum): P8 agent user guide …"
+
+### What I did
+- `internal/doc/doc.go`: `//go:embed *` + `AddDocToHelpSystem` (mirrors glazed's `pkg/doc`).
+- `internal/doc/applications/01-agent-guide.md`: the complete guide — setup, registration, profiles, subforums, threads (all input channels + filters), posts, unified inbox (poll/follow/ack), metadata, search, idempotency, structured output, three recipes, troubleshooting table, See Also.
+- `internal/doc/topics/01-configuration.md`: env/flag precedence, default-path resolution, AGENT_NAME≠auth, backend, logging + debugging flags.
+- `internal/doc/topics/02-unified-inbox.md`: cursor contract, reasons + precedence, self-exclusion, forward-only, long-poll internals, ack semantics.
+- `internal/doc/topics/03-metadata-and-search.md`: verbatim-JSON + flattened-terms model, flattening rules, validation limits, filter semantics, text search scope.
+- `internal/cli/root.go`: `PersistentPreRunE` → `logging.InitLoggerFromCobra`, `AddLoggingSectionToRootCommand(root, "agentforum")`, `help.NewHelpSystem()` + `doc.AddDocToHelpSystem` + `help_cmd.SetupCobraRootCommand`; root long-help now points at `agentforum help agent-guide`.
+- `go mod tidy` (the help cmd's TUI deps: bubbletea, lipgloss, …).
+
+### Why
+- The help system is the canonical Glazed way to serve docs from a binary; `agentforum help <slug>` gives agents the guide exactly where they work.
+- One Application entry (complete, self-contained) plus three GeneralTopic deep-dives keeps `agentforum help` scannable while the guide stays exhaustive.
+
+### What worked
+- `agentforum help` now lists General topics (configuration, unified-inbox, metadata-and-search) and Applications (agent-guide); each renders with tables intact.
+- Unknown slugs fall back to root help gracefully; commands, env loading, and logging flags all still work; full gate green.
+- Style rules from `glaze help how-to-write-good-documentation-pages` / `writing-help-entries` followed: no top-level `#`, what/how/why section openings, runnable examples, troubleshooting tables, See Also cross-refs.
+
+### What didn't work
+- First build failed: glazed's help cmd imports the bubbletea TUI, so `go.sum` lacked entries — fixed with `go mod tidy`.
+
+### What I learned
+- `SetupCobraRootCommand` adds a persistent `--long-help`, replaces cobra's default help command with a slug-aware one (shell completion lists slugs), and renders root help through the Glazed templates — including the embedded sections list.
+- `LoadSectionsFromFS` walks recursively, `.md` only, and skips `readme.md` — so `doc.go` itself is harmlessly embedded.
+
+### What was tricky to build
+- Keeping every guide example truthful to the implementation (flag names, error strings, row fields like `next_cursor` on every event row and the `kind=poll` empty marker). Each claim was checked against the binary before committing (e.g. `--print-parsed-fields`, `--meta` string-only semantics, `--body-file` precedence).
+
+### What warrants a second pair of eyes
+- The guide is now a contract: if a flag or row shape changes, the guide must change with it. Consider a smoke test asserting key guide strings (e.g. `--idempotency-key`, `next_cursor`) against `--help` output so drift is caught in CI.
+- The `--meta` values-are-strings caveat (numbers need `--metadata-file`) is documented in the metadata topic — verify it stays prominent if metadata handling evolves.
+
+### What should be done in the future
+- Add focused Example entries (e.g. one per recipe) once the section count grows.
+- Wire `docs`/`markdown` export commands if agents want the guide as files.
+- CI check that `agentforum help agent-guide` exits 0 so a broken embed fails the build.
+
+### Code review instructions
+- Start in `internal/doc/doc.go` and `internal/cli/root.go` (wiring), then skim all four markdown files for factual drift against the commands.
+- Validate: `make build && ./agentforum help && ./agentforum help agent-guide | head -50 && make test`.
+
+### Technical details
+- Slugs: `agent-guide` (Application, IsTopLevel), `configuration`, `unified-inbox`, `metadata-and-search` (GeneralTopic, IsTopLevel).
+- Frontmatter fields used: Title, Slug, Short, Topics, Commands, Flags, IsTopLevel, IsTemplate, ShowPerDefault, SectionType.

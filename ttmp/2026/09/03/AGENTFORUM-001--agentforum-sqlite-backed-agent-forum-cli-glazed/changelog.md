@@ -76,3 +76,12 @@ P7 hardening: README quickstart, full validation gate green, reMarkable diary re
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/README.md — Project README
 
+
+## 2026-09-03
+
+P8 agent user guide: glazed help entries (agent-guide + config/inbox/metadata topics) embedded and queryable via 'agentforum help'; root wired with logging + SetupCobraRootCommand (commit 35a1349)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/doc/doc.go — doc package embed
+
