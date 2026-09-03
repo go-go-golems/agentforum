@@ -276,3 +276,67 @@ Design §6: copy now, unify later. W3 proves the copied look + widgets work agai
 
 ### Technical details
 - Commit: 5a643c1. Copied 64 source files (+ vendor tree + generated pb already present). Build: 1686 modules, dist ≈ 484 kB JS (152 kB gzip) + 40 kB CSS.
+
+## Step 5: W4 — core screens, markdown + MathJax, flat restyle (user feedback mid-phase)
+
+This step delivered the core screens (thread detail with composer and
+watch toggles, IR-driven thread list) and, after user feedback mid-phase,
+restyled the UI to flat HN-style austerity inside the retro system and
+added markdown + MathJax rendering to post bodies, reusing publish-vault's
+MathJax loader and code-enhancement machinery.
+
+### Prompt Context
+
+**User prompt (verbatim):** "no brutalist dropshadows, and more compact / concise (think HN style austerity, but stick with the style overall. make sure markdown and mathjax work). /tmp/pi-clipboard-6a5d8531-4a53-4973-9721-3f1314993b30.png"
+
+Followed by: "remember you can also copy stuff from publish-vault and such"
+
+**Assistant interpretation:** Keep the retro monochrome language but remove all drop shadows, tighten spacing to Hacker-News-like density, and render post bodies as markdown with MathJax math; prefer copying proven publish-vault code over writing new.
+
+**Inferred user intent:** The first browser look was too heavy (boxed posts, hard shadows, generous padding). The user wants an austere, information-dense reading surface that still reads as the same retro system, with full markdown/math support for agent-authored content.
+
+### What I did
+- ThreadDetailScreen (PostStream + composer with per-submit idempotency keys, watch/unwatch, breadcrumbs, metadata strip); ThreadListScreen rebuilt as widget IR (cell specs, navigate `ActionSpec` with `${row.id}` interpolation, WidgetRenderer + defaultRegistry); `getThread` endpoint.
+- Copied `lib/mathjax.ts` from publish-vault verbatim (TeX→SVG direct API, lazy font-range loading, `typesetTeX`/`ensureMathStyles`).
+- Extracted `enhanceCodeBlocks` + `addCopyButtons` from publish-vault's `noteEnhancements.ts` into PostStream's `codeEnhancements.ts` (mermaid/embeds/anchors dropped — vault-specific); styles already in copied prose.css.
+- New `lib/markdown.ts` (math extraction → marked → DOMPurify) and `MarkdownBody.tsx` (sanitized HTML + placeholder swap for typeset TeX; memo is load-bearing like NoteBody).
+- Restyle: all `box-shadow`s removed from chrome.css (window/inset/btn/btn-primary/search); tighter paddings (btn `2px 8px`/11px, menubar 24px, tree items `1px 6px`/11px, window-title `2px 6px`/11px); PostStream → flat divider-separated list with one-line meta; subforum rows flat with dividers; screen paddings p-3/p-4.
+- Browser-verified with a markdown+math post: 2 MathJax SVGs (inline + display), bold/list rendered, Go code block hljs-highlighted with copy button, "Costs $5" left as prose by the delimiter edge rule.
+
+### Why
+The feedback arrived between the W4 build and its commit, so W4 landed as one commit containing both the core screens and the restyle (`fdcdd9b`).
+
+### What worked
+- Copying publish-vault's MathJax module verbatim: the whole typeset path (lazy font ranges, retry handling, SVG output with `fontCache: "local"`) worked first try against marked-produced HTML.
+- The `$5`-stays-prose rule (math delimiters require non-space content edges) held in the live test.
+- DOMPurify with `ADD_ATTR: ["data-af-math"]` keeps the placeholder attributes alive through sanitization.
+
+### What didn't work
+- The first W4 commit attempt silently died: `pkill -f af-serve2` matched the *shell running the command itself* (the pattern string appears in the shell's own command line), killing the session before the gate/commit ran. Same trap again later with `kill $(pgrep -f afserveW4)`. Fix: `pkill -x <exact-name>`. Recorded here because it will bite again otherwise.
+- `@highlight-languages` path alias from publish-vault's tsconfig was dropped in my adapted tsconfig — first used a relative import, which is fine without SSR; the alias only exists for the SSR module swap.
+- Two more import-depth slips in new files (PostStream at `src/components/organisms/X/` → lib is 3 up). The rule that finally stuck: count from the file to `src/`, not to `components/`.
+
+### What I learned
+- MathJax 4 direct API + `fontCache: "local"` composes cleanly with `dangerouslySetInnerHTML` content as long as the host is memoized (inner re-renders destroy SVG nodes silently).
+- marked v18's `parse` is sync when called with `{async: false}`; the default return type is `string | Promise<string>` and needs the cast.
+
+### What was tricky to build
+- Ordering inside MarkdownBody's effect: hljs/copy-button enhancement and math typesetting both mutate the same subtree. Resolved by running code enhancement first (placeholders are inert spans that survive hljs) and swapping math nodes after; each pass is idempotent and cancellation-guarded.
+- Math inside fenced code blocks is not protected (extraction runs before markdown parsing) — documented as a v1 limitation in `lib/markdown.ts`.
+
+### What warrants a second pair of eyes
+- DOMPurify default profile on agent-authored markdown: raw HTML is sanitized but the allowlist is generous. If untrusted agents ever post, tighten the profile.
+- The math regexes handle `$…$`/`$$…$$`/`\(...\)`/`\[...\]` — escaped-dollar (`\$`) prose is NOT handled and would still match as a delimiter.
+
+### What should be done in the future
+- W5: inbox screen with the `useEventStream` long-poll loop.
+- Protect fenced code from math extraction (split on fences first).
+- Composer preview (render markdown live before posting).
+
+### Code review instructions
+- Start: `web/src/components/organisms/PostStream/MarkdownBody.tsx` (the render pipeline), `web/src/lib/markdown.ts` (delimiter rules), then `chrome.css` (the restyle diff).
+- Validate: `cd web && pnpm check && pnpm test && pnpm build`; browser flow per diary above.
+
+### Technical details
+- Commit: fdcdd9b (includes both the core screens and the restyle). Deps added: `marked`, `@mathjax/src`, `@mathjax/mathjax-newcm-font`, `dompurify` (+ types).
+- Live check result: `{mathCount: 2, strongCount: 1, liCount: 2, codeHighlighted: 1, copyBtns: 1, dollarOk: 1}`.

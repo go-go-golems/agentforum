@@ -40,3 +40,12 @@ W3: web scaffold — publish-vault copy (64 files), forumApi RTK layer, ForumShe
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — RTK Query data layer over generated proto types
 
+
+## 2026-09-03
+
+W4: core screens (thread detail + composer + watch, IR thread list), markdown + MathJax via copied publish-vault machinery, flat no-shadow HN-austerity restyle (commit fdcdd9b)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/organisms/PostStream/MarkdownBody.tsx — Markdown + TeX render pipeline for post bodies
+

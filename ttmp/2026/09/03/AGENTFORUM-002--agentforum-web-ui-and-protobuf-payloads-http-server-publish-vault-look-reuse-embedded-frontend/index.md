@@ -20,12 +20,15 @@ RelatedFiles:
       Note: Pins the protojson wire shape (camelCase, int64-as-string, Struct-as-object)
     - Path: repo://web/src/components/pages/ForumShell/ForumShell.tsx
       Note: App shell composed from copied retro atoms
+    - Path: repo://web/src/lib/markdown.ts
+      Note: Math delimiter extraction + marked + DOMPurify pipeline
 ExternalSources: []
 Summary: ""
 LastUpdated: 2026-09-03T18:19:03.055181811-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 
 
