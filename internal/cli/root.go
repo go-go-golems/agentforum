@@ -152,6 +152,10 @@ Start with the agent guide:  agentforum help agent-guide`,
 	if err := add(NewSearchCommand()); err != nil {
 		return nil, err
 	}
+	// W7: server
+	if err := add(NewServeCommand()); err != nil {
+		return nil, err
+	}
 
 	if err := cli.AddCommandsToRootCommand(root, commands, nil, parserOpts); err != nil {
 		return nil, fmt.Errorf("agentforum: mount commands: %w", err)

@@ -70,6 +70,9 @@ func New(svc *service.Service) *Server {
 	s.router.HandleFunc("POST /v1/events/ack", s.auth(s.handleAckEvents))
 	s.router.HandleFunc("POST /v1/search", s.auth(s.handleSearch))
 
+	// embedded SPA when built with the `embed` tag (see static.go)
+	s.mountSPA()
+
 	return s
 }
 

@@ -50,6 +50,12 @@ export function getToken(): string {
 }
 
 export function setToken(token: string) {
+  // guard against an undefined/empty token silently storing the string
+  // "undefined" — a malformed registration response must not poison the
+  // credential slot (observed once during W7 verification; see diary)
+  if (typeof token !== "string" || !token.startsWith("af_")) {
+    return;
+  }
   localStorage.setItem(TOKEN_KEY, token);
 }
 

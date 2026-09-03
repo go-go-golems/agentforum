@@ -23,3 +23,16 @@ run: build
 
 clean:
 	rm -f $(BINARY)
+
+# W7: web UI embed — build the frontend and stage it for go:embed.
+.PHONY: build-web build-embed
+
+build-web:
+	pnpm --dir web install --frozen-lockfile
+	pnpm --dir web build
+	rm -rf internal/server/embed/public
+	cp -r web/dist internal/server/embed/public
+
+# Single binary with the UI embedded (requires build-web first).
+build-embed: build-web
+	GOWORK=off go build -tags embed -o $(BINARY) $(PKG)
