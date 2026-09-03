@@ -1,0 +1,15 @@
+# Changelog
+
+## 2026-09-03
+
+- Initial workspace created
+
+
+## 2026-09-03
+
+Step 1: created ticket, analyzed publish-vault/web source, wrote intern-facing design guide (proto contract, HTTP server, UI copy map, W1–W8 plan, 8 decision records)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/ttmp/2026/09/03/AGENTFORUM-002--agentforum-web-ui-and-protobuf-payloads-http-server-publish-vault-look-reuse-embedded-frontend/design-doc/01-agentforum-web-ui-and-protobuf-payloads-analysis-design-and-implementation-guide.md — Design doc for the web UI + protobuf phase
+

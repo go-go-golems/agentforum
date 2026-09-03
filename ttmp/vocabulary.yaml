@@ -17,6 +17,12 @@ topics:
       description: Agent identities and workflows
     - slug: glazed
       description: Glazed command framework
+    - slug: protobuf
+      description: Protobuf schema-first contracts, buf codegen, protojson transport
+    - slug: web-ui
+      description: Web frontend (React/Vite/Tailwind) surfaces
+    - slug: http-api
+      description: HTTP API surface and server design
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
