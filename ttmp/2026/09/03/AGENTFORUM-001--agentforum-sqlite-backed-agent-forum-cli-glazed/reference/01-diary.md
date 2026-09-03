@@ -13,6 +13,8 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
+    - Path: repo://internal/cli/events.go
+      Note: events poll/follow/ack commands (commit 5744e9a)
     - Path: repo://internal/cli/profile.go
       Note: profile register/show/update commands (commit dbf44e4)
     - Path: repo://internal/cli/root.go
@@ -23,6 +25,8 @@ RelatedFiles:
       Note: thread create/list/show/watch/unwatch (commit b8f9ea2)
     - Path: repo://internal/service/agents.go
       Note: Register/ResolveAgent/UpdateMe business rules (commit dbf44e4)
+    - Path: repo://internal/service/events.go
+      Note: PollEvents long-poll + reason computation (commit 5744e9a)
     - Path: repo://internal/service/subforums.go
       Note: subforum CRUD + watch rules (commit a01d81c)
     - Path: repo://internal/store/agents.go
@@ -41,6 +45,7 @@ LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 
@@ -354,3 +359,55 @@ need a backfill.
 ### Technical details
 - Atomic bundle (create thread): thread + post + participant + 2 terms indexes + 2 events + optional watch, one `BEGIN/COMMIT`.
 - `kind` column distinguishes thread vs post rows in `thread show`/`thread create` output.
+
+## Step 6: P5 events + long-poll
+
+This phase built the unified inbox: `events poll` long-polls a monotonic cursor,
+computing per-agent reasons (participating/watching/watched_subforum) at query
+time and excluding the agent's own actions; `events follow` streams; `events ack`
+records durable progress. The impact is the brief's central feature — one stream
+across all threads an agent cares about.
+
+**Commit (code):** 5744e9a — "feat(agentforum): P5 events …"
+
+### What I did
+- `internal/store/events.go`: `ListEventsAfter(cursor, limit)` (asc sequence), `AckEvents` (upsert `event_acks`), `GetAck`, `scanEvent`.
+- `internal/service/events.go`: `PollEvents` (long-poll loop with `pollPageSize`/`pollInterval`), `parseScope` (involved→participating, watching, watched-subforums), `membershipSets` (batched participant/watched-thread/subforum sets), `eventReason` (precedence participating>watching>watched_subforum, self-excluded by caller), `AckEvents`/`GetAck`, `sleepCtx`.
+- `internal/cli/events.go`: `events poll --cursor/--wait/--scope/--since-ack`, `events follow --wait/--scope/--since-ack` (loops until SIGINT), `events ack --through-sequence`; `eventRow` carries `next_cursor` per row; `emptyPollRow` for empty polls.
+- `internal/service/events_test.go`: reasons + self-exclusion + scope + ack; a long-poll concurrency test (poller blocks, poster fires, poller returns within deadline).
+
+### Why
+- Reason computed at query time (not stored) keeps writes O(1) and lets watching start/stop without rewriting history (Decision Records).
+- Forward-only cursor (advance past every examined event) avoids busy-loops on self-events while delivering eligible events before advancing past them.
+
+### What worked
+- bob (watches thread) → 3 events `watching`; carol (watches subforum) → 3 `watched_subforum`; alice (all self) → 0 but `next_cursor=3`; `--scope involved` (bob not a participant) → 0; `ack 3` then `--since-ack` → empty.
+- Long-poll: bob `poll --since-ack --wait 4` in background, alice posts after 1s → poll returns event seq 4 `post.created` within the window (proven both via CLI and a Go concurrency test).
+- `go test ./...` + `go vet` clean.
+
+### What didn't work
+- Duplicate `case "watched-subforum"` in `parseScope` (I listed the token twice); fixed to one combined case.
+- First events test referenced `service.Event` (no such type); events are `models.Event`. Fixed import + channel type.
+
+### What I learned
+- The single-connection pool from P1 does NOT block the long-poll concurrency: the test's poller and poster run on the same `*sql.DB` and SQLite WAL + the poller sleeping (not holding a tx) let the post land. So P1's `SetMaxOpenConns(1)` concern (flagged in P4) is fine for long-poll reads, which never hold an open transaction while waiting.
+
+### What was tricky to build
+- Cursor advancement vs. retroactive eligibility: a thread you watch NOW makes its past events eligible (reason-at-query-time). I deliver them if your cursor hasn't passed them; once advanced, they're gone. This is intentional forward-only behavior, documented.
+- Keeping the wait loop from busy-spinning: a full page of ineligible events advances the cursor and loops immediately (no sleep); only when caught up (page < limit) does it sleep until the deadline.
+
+### What warrants a second pair of eyes
+- `eventReason` precedence: a thread you both participate in AND watch returns `participating` (not `watching`). Confirm that's the desired single `reason` field; the brief shows one reason per event.
+- `events follow` loops forever and only stops on ctx cancellation (SIGINT) or error; a transient store error would terminate the stream. Acceptable for a CLI loop but note for a future server SSE path (retry/backoff).
+
+### What should be done in the future
+- Enrich event rows with post body + author display name (batched per page) so the inbox is self-contained, matching the brief's event shape.
+- Add SSE `/v1/events/stream` reusing `PollEvents` with the same cursor/next_cursor contract.
+
+### Code review instructions
+- Start in `internal/service/events.go` (`PollEvents`, `eventReason`, `parseScope`) and `internal/cli/events.go` (`EventsFollowCommand` loop).
+- Validate: `make test` (includes the long-poll concurrency test); then the P5 CLI roundtrip above.
+
+### Technical details
+- `pollPageSize=500`, `pollInterval=200ms`. Scope default `involved,watching,watched-subforums`. `event_acks` PK agent_id.
+- `next_cursor` is emitted on every event row (and on the empty-poll row) so JSONL consumers can resume from any line.

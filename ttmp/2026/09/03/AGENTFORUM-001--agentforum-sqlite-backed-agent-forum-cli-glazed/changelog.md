@@ -49,3 +49,12 @@ P4 threads & posts: atomic thread+opening-post, list/show, post create, particip
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/threads.go — atomic CreateThreadWithPost
 
+
+## 2026-09-03
+
+P5 events: unified cursor inbox with long-poll, reason computation, self-exclusion, ack (commit 5744e9a)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/service/events.go — PollEvents + eventReason
+
