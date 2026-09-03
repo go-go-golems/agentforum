@@ -36,6 +36,10 @@ func NewRootCommand() (*cobra.Command, error) {
 	root := &cobra.Command{
 		Use:   "agentforum",
 		Short: "A SQLite-backed forum for AI agents",
+		// Silence cobra's own usage/error printing; main's cobra.CheckErr prints
+		// the error once and sets the exit code. This keeps command errors clean.
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		Long: `agentforum is a tiny forum for AI agents.
 
 Agents register once, create subforums, open threads, post replies, watch
@@ -52,14 +56,29 @@ Configuration (env vars / flags):
 The first milestone is CLI-only: the binary talks straight to SQLite.`,
 	}
 
-	commands := []cmds.Command{
-		NewDBInitCommand(),
-		// P2: profile register/show/update
-		// P3: subforum list/create/show/watch/unwatch
-		// P4: thread create/list/show, post create
-		// P5: events poll/follow/ack
-		// P6: post search, search
+	commands := make([]cmds.Command, 0, 32)
+	add := func(c cmds.Command, err error) error {
+		if err != nil {
+			return err
+		}
+		commands = append(commands, c)
+		return nil
 	}
+
+	if err := add(NewDBInitCommand()); err != nil {
+		return nil, err
+	}
+	// P2: profile
+	if err := add(NewProfileRegisterCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewProfileShowCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewProfileUpdateCommand()); err != nil {
+		return nil, err
+	}
+	// P3: subforum, P4: thread/post, P5: events, P6: search — added in later phases.
 
 	if err := cli.AddCommandsToRootCommand(root, commands, nil, parserOpts); err != nil {
 		return nil, fmt.Errorf("agentforum: mount commands: %w", err)
@@ -93,6 +112,17 @@ func decodeConnection(vals *values.Values) (config.Connection, error) {
 	return conn, nil
 }
 
+// withConnection is a shorthand for the very common "this command needs a DB"
+// case: it returns the connection section so callers can pass it to
+// cmds.WithSections alongside their own flags.
+func withConnection() (cmds.CommandDescriptionOption, error) {
+	section, err := config.ConnectionSection()
+	if err != nil {
+		return nil, err
+	}
+	return cmds.WithSections(section), nil
+}
+
 // --- db init: P1 verification command -----------------------------------
 
 // DBInitCommand opens (and migrates) the database and reports status. It
@@ -100,17 +130,11 @@ func decodeConnection(vals *values.Values) (config.Connection, error) {
 // and migrations.
 type DBInitCommand struct{ *cmds.CommandDescription }
 
-type dbInitSettings struct{}
-
 // NewDBInitCommand builds the `agentforum db init` command.
-func NewDBInitCommand() *DBInitCommand {
-	section, err := config.ConnectionSection()
+func NewDBInitCommand() (*DBInitCommand, error) {
+	sec, err := config.ConnectionSection()
 	if err != nil {
-		// Construction-time errors propagate through NewRootCommand; for a
-		// shared section this should be impossible, so panic-free construction
-		// would need a (T, error) signature. Keep P1 simple: panic is fine
-		// only if schema.NewSection fails, which it doesn't for static input.
-		panic(fmt.Errorf("agentforum: build connection section: %w", err))
+		return nil, err
 	}
 	return &DBInitCommand{CommandDescription: cmds.NewCommandDescription(
 		"init",
@@ -121,8 +145,8 @@ func NewDBInitCommand() *DBInitCommand {
 This is the simplest way to verify the connection configuration works:
   agentforum db init
   AGENTFORUM_DB=/tmp/x.db agentforum db init --format json`),
-		cmds.WithSections(section),
-	)}
+		cmds.WithSections(sec),
+	)}, nil
 }
 
 // RunIntoGlazeProcessor satisfies cmds.GlazeCommand.
@@ -161,13 +185,7 @@ func effectiveBackend(conn config.Connection) string {
 	return conn.Backend
 }
 
-// Compile-time interface checks.
-var (
-	_ cmds.GlazeCommand = (*DBInitCommand)(nil)
-)
-
-// keep imports used in later phases referenced so go vet doesn't complain
-// about unused helpers as the command set grows.
+// keep imports referenced for later phases
 var (
 	_ = fields.WithHelp
 	_ = schema.DefaultSlug

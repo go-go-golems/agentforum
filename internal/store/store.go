@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -74,3 +75,17 @@ func (s *Store) DB() *sql.DB { return s.db }
 
 // Close closes the database handle.
 func (s *Store) Close() error { return s.db.Close() }
+
+// parseTime parses an RFC3339Nano timestamp stored in the DB. A blank or bad
+// value yields the zero time rather than an error, so reads never fail on a
+// NULL-ish column.
+func parseTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
