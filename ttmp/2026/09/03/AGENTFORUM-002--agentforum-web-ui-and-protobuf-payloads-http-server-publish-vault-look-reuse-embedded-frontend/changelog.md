@@ -58,3 +58,12 @@ W5: inbox screen — useEventStream long-poll loop (persisted bigint cursor, ded
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/hooks/useEventStream.ts — The inbox long-poll loop (design §7.4)
 
+
+## 2026-09-03
+
+W6: search + metadata filters — SearchScreen, MetadataFilterPanel, search endpoint with author-name and stats denormalization (commit 3b001be)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/pages/SearchScreen/SearchScreen.tsx — Search screen with text + metadata filters
+
