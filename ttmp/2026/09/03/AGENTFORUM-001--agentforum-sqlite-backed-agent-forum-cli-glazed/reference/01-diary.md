@@ -12,13 +12,20 @@ Topics:
 DocType: reference
 Intent: long-term
 Owners: []
-RelatedFiles: []
+RelatedFiles:
+    - Path: repo://internal/cli/root.go
+      Note: Glazed root + AppName env loading + openService (commit cbdc6a6)
+    - Path: repo://internal/store/migrations.go
+      Note: embedded migration runner (commit cbdc6a6)
+    - Path: repo://internal/store/store.go
+      Note: SQLite open with WAL/busy_timeout/FK (commit cbdc6a6)
 ExternalSources: []
-Summary: "Implementation diary for agentforum: chronological record of each phase, what changed, what failed, and how to validate."
+Summary: 'Implementation diary for agentforum: chronological record of each phase, what changed, what failed, and how to validate.'
 LastUpdated: 2026-09-03T16:40:29.043612152-04:00
-WhatFor: "Record the implementation journey so review and continuation are straightforward."
-WhenToUse: "Read before resuming work on AGENTFORUM-001."
+WhatFor: Record the implementation journey so review and continuation are straightforward.
+WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 # Diary
 
@@ -90,3 +97,74 @@ proceed phase by phase with a stable contract to check against.
 - Tasks: `docmgr task list --ticket AGENTFORUM-001`
 - Slip script: `~/.pi/agent/skills/brutalist-work-slip/scripts/work_slip.py plan …`
 - Glazed version: v1.4.3 (toolchain go1.26.8); consumer reference: refactorio.
+
+## Step 2: P1 scaffold — module, glazed root, store, migrations
+
+This phase stood up the runnable skeleton: a Go module, a Glazed root command that
+loads `AGENTFORUM_*` env vars, a reusable connection section, a pure-Go SQLite
+store with an embedded migration runner, and a `db init` command that proves the
+whole stack works. The impact is that every later phase starts from a binary
+that opens/migrates a database and prints structured output.
+
+**Commit (code):** cbdc6a6 — "feat(agentforum): P1 scaffold …"
+
+### What I did
+- `go mod init github.com/go-go-golems/agentforum`; pulled glazed v1.4.3,
+  modernc.org/sqlite v1.58.0, oklog/ulid/v2 v2.1.2 (toolchain auto-fetched go1.26.8).
+- `internal/id`: prefixed ULID IDs (`ag_/th_/po_`) + `af_` token + `HashToken` (sha256).
+- `internal/models`: Agent/Subforum/Thread/Post/Event/Participant/MetadataTerm + event reasons.
+- `internal/config`: `Connection` struct + `ConnectionSection()` (no-prefix section →
+  `AGENTFORUM_DB/URL/TOKEN/BACKEND`) + `DefaultDBPath/ResolveDBPath` (XDG-aware).
+- `internal/store`: `Open` (WAL + busy_timeout + FK on, single conn), embedded
+  `migrations/*.sql` runner tracking `schema_migrations`, `0001_init.sql` with all 12 tables.
+- `internal/service`: thin `Service` wrapping the store (methods added in later phases).
+- `internal/cli`: root wired with `WithParserConfig(AppName:"agentforum")` via
+  `AddCommandsToRootCommand`; `db init` command exercising the stack.
+- `cmd/agentforum/main.go`, `Makefile`, `.gitignore`, `store_test.go`.
+
+### Why
+- One connection section + `AppName` env prefix is the cleanest way to satisfy the
+  brief's "glazed for env vars + CLI flags" without hand-rolled `os.Getenv` in the hot path.
+- `modernc.org/sqlite` keeps `go build` CGO-free; WAL + single connection
+  serializes writes simply for the CLI-only milestone.
+
+### What worked
+- `agentforum --help` prints the tree; `db init` creates the DB with all 12 tables;
+  `AGENTFORUM_DB=/tmp/af-test.db agentforum db init --format json` works; re-running
+  is idempotent (exactly 1 row in `schema_migrations`).
+- `go test ./...`, `go vet ./...`, `git diff --check` all clean.
+
+### What didn't work
+- (No failures.)
+
+### What I learned
+- `cmds.WithSections` (not the tutorial's stale `WithSectionsList`) is the v1.4.3 API.
+- The connection section has no prefix on purpose: with `AppName` set, a prefixed
+  section would double the env namespace (`AGENTFORUM_AGENTFORUM_DB`).
+
+### What was tricky to build
+- Keeping `service` free of `cobra`/`glazed`/`os` while the CLI still owns "open the
+  DB + resolve defaults" — resolved by putting `openService` in `internal/cli` and
+  passing a plain `config.Connection` into the service.
+
+### What warrants a second pair of eyes
+- The single-connection pool (`SetMaxOpenConns(1)`) is correct for write
+  serialization but means long-poll reads in P5 share the writer's lock; revisit if
+  P5 polls block writes. WAL + busy_timeout should make reads non-blocking, but verify.
+- `0001_init.sql` is `IF NOT EXISTS`-guarded *and* tracked in `schema_migrations`, so a
+  future migration must not also use `IF NOT EXISTS` blindly or it can mask drift.
+
+### What should be done in the future
+- When adding a second migration, ensure it is not idempotent-by-accident so the
+  runner actually detects partial applies.
+- Consider a `db status`/`db migrate --list` command for diagnostics.
+
+### Code review instructions
+- Start in `internal/cli/root.go` (`openService`, `parserOpts`) and `internal/store/store.go` (`buildDSN`).
+- Validate: `make build && AGENTFORUM_DB=/tmp/x.db ./agentforum db init --format json` then `sqlite3 /tmp/x.db '.tables'`.
+- Run `make test`.
+
+### Technical details
+- DSN: `file:<path>?_pragma=journal_mode=WAL&_pragma=busy_timeout=5000&_pragma=foreign_keys=on`.
+- Env mapping: `AGENTFORUM_<UPPER(FIELD_WITH_UNDERSCORES)>`.
+- Tables: agents, subforums, threads, posts, participants, watches, subforum_watches, events, event_acks, metadata_terms, idempotency_keys, schema_migrations.
