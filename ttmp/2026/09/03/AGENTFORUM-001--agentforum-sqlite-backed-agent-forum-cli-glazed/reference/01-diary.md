@@ -13,6 +13,8 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
+    - Path: repo://README.md
+      Note: Quickstart + layout + status (P7)
     - Path: repo://internal/cli/events.go
       Note: events poll/follow/ack commands (commit 5744e9a)
     - Path: repo://internal/cli/profile.go
@@ -51,6 +53,7 @@ LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 
@@ -478,3 +481,60 @@ transcript/ticket/keyword and retry writes without duplicates.
 
 ### Technical details
 - `TermFilter{Keys, Value}`: OR over keys, AND over filters. Idempotency cached JSON: `{"thread":…,"initial_post":…}` and `{"post":…}`.
+
+## Step 8: P7 hardening & ship
+
+This final phase closed the milestone: a README quickstart, the full validation
+gate, a reMarkable re-upload of the now-complete diary, and the final task/slip
+bookkeeping. The impact is that the project is reproducible (`make build/test`),
+documented, and deliverable.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Finish P7 — README, validation, reMarkable diary upload, final slip.
+
+**Inferred user intent:** A shipped, validated, documented CLI-only agentforum with a paper trail.
+
+### What I did
+- Wrote `README.md` (layout, config table, quickstart, key concepts, validation, status).
+- Ran the full gate: `gofmt -l` (clean), `go test ./...` (store+service green, incl. long-poll concurrency), `go vet` (clean), `go build ./...` (clean), `git diff --check` (clean).
+- Smoke-tested a fresh DB: db init → register → subforum → thread (--watch) → post → `events poll` (self-exclusion → empty-poll row, as designed).
+- Re-uploaded the design doc + complete diary bundle to reMarkable.
+- Checked the P7 task; ran `docmgr doctor` (clean).
+
+### Why
+- The validation gate is the contract: every phase ends with `make test/vet/build`, so the milestone close is just running it once more on the whole tree.
+- Re-uploading the diary gives the tablet the complete journey, not just the planning snapshot.
+
+### What worked
+- Full gate green on the first close attempt (no new failures surfaced).
+- Smoke confirmed self-exclusion: a sole agent's `events poll` returns the empty-poll marker row (`events: 0`), not its own activity.
+
+### What didn't work
+- (Nothing.)
+
+### What I learned
+- The empty-poll row is a useful invariant to assert: it proves the cursor advanced past self-events without delivering them.
+
+### What was tricky to build
+- Resisting scope creep at the finish: the HTTP server, SSE, and per-subforum JSON-Schema are deliberately documented as future phases, not implemented now.
+
+### What warrants a second pair of eyes
+- The CLI has no `cli`-layer tests yet (only store+service). The design's test strategy calls for a couple of end-to-end `Execute` tests; that's the top follow-up.
+- `idempotency_keys` PK is `key` only (per-agent in lookup but global PK); flagged in Step 7 — confirm global uniqueness or switch PK to `(key, agent_id)`.
+
+### What should be done in the future
+- Add CLI-layer tests (build each command, assert Glazed universal flags, end-to-end run on a temp DB).
+- Implement the HTTP server phase reusing `*service.Service` (design §10).
+- Add SSE `/v1/events/stream` reusing `PollEvents`.
+- Escape `%%`/`_` in search text or move to FTS5.
+
+### Code review instructions
+- Run `make fmt test vet build`; read `README.md` and re-run the quickstart.
+- Confirm `docmgr doctor --ticket AGENTFORUM-001` is clean and all 7 tasks are checked.
+
+### Technical details
+- reMarkable: `/ai/2026/09/03/AGENTFORUM-001` (design doc + diary bundle).
+- Final commit graph: P1 cbdc6a6 → P2 dbf44e4 → P3 a01d81c → P4 b8f9ea2 → P5 5744e9a → P6 37f0c85 → P7 (this step).

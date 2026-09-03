@@ -67,3 +67,12 @@ P6 metadata & search: metadata_terms query, --meta/--keyword/--ticket filters, p
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/search.go — TermFilter + SearchThreads/SearchPosts
 
+
+## 2026-09-03
+
+P7 hardening: README quickstart, full validation gate green, reMarkable diary re-upload
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/README.md — Project README
+

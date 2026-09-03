@@ -8,4 +8,4 @@
 - [x] P4 Threads & posts: create thread+initial post atomically, list/show, post create/list, participants <!-- t:xr5w -->
 - [x] P5 Events: events table, unified poll/follow (long-poll), ack <!-- t:9h0c -->
 - [x] P6 Metadata & search: metadata_terms indexing, --meta/--keyword/--ticket filters, search, idempotency keys <!-- t:4oiq -->
-- [ ] P7 Hardening: tests, README, doctor, remarkable diary upload <!-- t:1ufz -->
+- [x] P7 Hardening: tests, README, doctor, remarkable diary upload <!-- t:1ufz -->
