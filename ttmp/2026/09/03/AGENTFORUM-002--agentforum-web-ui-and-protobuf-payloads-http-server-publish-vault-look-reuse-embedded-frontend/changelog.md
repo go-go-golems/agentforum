@@ -22,3 +22,12 @@ W1: proto schema (model+service), buf codegen Go+TS, golden protojson fixtures +
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/proto/agentforum/v1/service.proto — The payload contract every endpoint implements
 
+
+## 2026-09-03
+
+W2: HTTP server (stdlib net/http, protojson transport, bearer auth, error envelope, long-poll cap) + 4 batched store denormalization queries + httptest suite (commit ac4c9e6)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/server/handlers.go — Full /v1 endpoint surface over the service layer
+

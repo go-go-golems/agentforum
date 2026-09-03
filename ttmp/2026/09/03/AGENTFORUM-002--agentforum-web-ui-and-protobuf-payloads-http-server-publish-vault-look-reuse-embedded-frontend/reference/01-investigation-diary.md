@@ -150,3 +150,65 @@ The design (§4) makes `.proto` the single source of truth for Go server and TS 
 ### Technical details
 - Commit: 8d161dd.
 - Codegen command: `buf generate proto` (from repo root); remote plugins `buf.build/bufbuild/es` (target=ts, import_extension=none) and `buf.build/protocolbuffers/go` (paths=source_relative).
+
+## Step 3: W2 — HTTP server with protojson transport
+
+This step built the `/v1` API as a pure adapter over the existing service
+layer: routing, bearer authentication, protojson encoding, error mapping,
+and long-poll deadline wiring. The store gained four batched queries for
+response denormalization. The full endpoint surface is covered by an
+httptest integration suite plus a live curl walkthrough.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2)
+
+**Assistant interpretation:** Same directive continuing — implement phase W2 with per-phase commit, diary, and slips.
+
+**Inferred user intent:** See Step 2.
+
+### What I did
+- `internal/server/server.go`: `Server{svc, router}`, `New()` wiring the full route table (Go 1.22+ patterns like `POST /v1/subforums/{key}/threads`), `auth()` middleware (bearer → `ResolveAgent`, agent+token in context), `healthz`.
+- `internal/server/json.go`: `writeProtoJSON` (protojson, camelCase), `decodeProtoJSON` (1 MiB cap, `DiscardUnknown: true` — resolving open question R2), `writeServiceError` (sentinels → 401/404/409/422/500 with the `Error` proto envelope).
+- `internal/server/convert.go`: the single `internal/models` → `agentforumv1` boundary; `threadView` batches watching/participating/stats per requesting agent.
+- `internal/server/handlers.go`: every endpoint from the design's §5.2 table, including `Idempotency-Key` header fallback on creates and the long-poll cap (`maxWaitSeconds=60`, `context.WithTimeout`).
+- Store additions: `ThreadStats`, `ThreadTitles` (threads.go), `AgentNames` (agents.go), `SubforumThreadCounts` (subforums.go) — one grouped query each, never N+1.
+- `internal/server/server_test.go`: httptest suite (register/auth flow, full forum flow over HTTP, idempotent retry, concurrent long-poll, unknown-field acceptance).
+
+### Why
+Design §5: the server is an adapter; business rules stay in the service. This phase makes the W1 contract reachable over HTTP, which W3–W7 (web UI) build on.
+
+### What worked
+- The whole `/v1` surface wrapped the existing service methods with zero service-layer changes — the "server is just an adapter" claim from the design held exactly.
+- Live curl walkthrough matched the design's wire contract verbatim: `postCount:"1"`, `nextCursor:"2"` empty-poll marker, `Error` envelope with `code:"unauthenticated"`.
+- Long-poll test reuses the service-level pattern (goroutine poll + delayed post + elapsed assertion).
+
+### What didn't work
+- `protojson.Message` does not exist — the correct parameter type is `proto.Message` (google.golang.org/protobuf/proto). Also `UnmarshalOptions.UnmarshalReader` does not exist in protobuf v1.36; fixed by reading the body (`io.ReadAll` + `io.LimitReader`) then `Unmarshal`.
+- `TermFilter` is `{Keys []string, Value}` (multi-key), not `{Key, Value}` — the search handler builds `Keys: []string{k}` per metadata entry.
+- `CreateThreadInput` field is `Metadata`, not `ThreadMetadata`.
+- First long-poll test asserted 3 events from cursor 0 — wrong: `PollEvents` returns immediately when *any* eligible events exist (bob had 2 already). Fixed by first draining (wait=0), then long-polling from the returned cursor; the blocked poll then delivers exactly the third event.
+- Attempted an out-of-repo smoke binary under `/tmp` — `use of internal package ... not allowed`; internal packages only build inside the module. Fixed with a temporary in-repo `cmd/afsmoke` (deleted before commit).
+
+### What I learned
+- A poll that already has eligible events returns immediately by design ("eligible events are always delivered before being advanced past") — long-poll blocking only happens when caught up. Testing long-poll therefore requires draining first; this is the inbox contract, not an implementation quirk.
+
+### What was tricky to build
+- Denormalization without N+1: every list/poll handler needs per-row display fields (authorName, threadTitle, postCount, watching, participating). Solved with four batched store queries and a `threadViews` struct computed once per request; the poll handler batches actor ids and thread ids across the returned events.
+
+### What warrants a second pair of eyes
+- `decodeProtoJSON`'s `DiscardUnknown: true` (R2) is now a shipped contract: clients may send unknown fields. If strictness is wanted later it is a behavior change, not a bug fix.
+- Search maps `subforums[0]` to the single `SearchInput.Subforum` (proto allows repeated; service supports one) — documented in-code, but the proto implies more than the service does.
+- `handleListPosts` ignores the proto's `after` cursor (proto `ListPostsRequest.thread_id`/`limit` are taken from path/query instead) — pagination beyond `limit` is not yet exposed over HTTP.
+
+### What should be done in the future
+- Expose post pagination (`after` cursor) in the HTTP API when the UI needs it.
+- Consider returning `nextCursor` on `GET /v1/threads` (keyset pagination) if thread lists grow.
+
+### Code review instructions
+- Start: `internal/server/server.go` (route table + auth), then `handlers.go` (one handler per endpoint), `convert.go` (the only models→proto boundary).
+- Validate: `GOWORK=off go test ./internal/server/ -count=1`; `gofmt -l internal; go vet ./...`.
+
+### Technical details
+- Commit: ac4c9e6.
+- Live walkthrough (loopback :18099): register → `af_…` token; create subforum (201); create thread with `Idempotency-Key` header → 201 with `postCount:"1"`, `watching:true`, `participating:true`, `authorName:"smoke"`; poll self-exclusion → `{"schemaVersion":1,"nextCursor":"2"}`; bad token → `{"code":"unauthenticated", …}`.
