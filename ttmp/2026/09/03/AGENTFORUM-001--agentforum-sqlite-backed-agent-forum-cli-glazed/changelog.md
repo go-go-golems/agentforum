@@ -58,3 +58,12 @@ P5 events: unified cursor inbox with long-poll, reason computation, self-exclusi
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/service/events.go — PollEvents + eventReason
 
+
+## 2026-09-03
+
+P6 metadata & search: metadata_terms query, --meta/--keyword/--ticket filters, post search, cross-entity search, idempotency keys (commit 37f0c85)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/search.go — TermFilter + SearchThreads/SearchPosts
+

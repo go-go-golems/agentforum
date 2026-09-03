@@ -19,6 +19,8 @@ RelatedFiles:
       Note: profile register/show/update commands (commit dbf44e4)
     - Path: repo://internal/cli/root.go
       Note: Glazed root + AppName env loading + openService (commit cbdc6a6)
+    - Path: repo://internal/cli/search.go
+      Note: cross-entity search command (commit 37f0c85)
     - Path: repo://internal/cli/subforum.go
       Note: subforum list/create/show/watch/unwatch (commit a01d81c)
     - Path: repo://internal/cli/thread.go
@@ -29,12 +31,16 @@ RelatedFiles:
       Note: PollEvents long-poll + reason computation (commit 5744e9a)
     - Path: repo://internal/service/subforums.go
       Note: subforum CRUD + watch rules (commit a01d81c)
+    - Path: repo://internal/service/threads.go
+      Note: idempotency replay (commit 37f0c85)
     - Path: repo://internal/store/agents.go
       Note: agent CRUD + token-hash lookup (commit dbf44e4)
     - Path: repo://internal/store/migrations.go
       Note: embedded migration runner (commit cbdc6a6)
     - Path: repo://internal/store/posts.go
       Note: atomic CreatePost + ListPosts (commit b8f9ea2)
+    - Path: repo://internal/store/search.go
+      Note: metadata_terms query path (commit 37f0c85)
     - Path: repo://internal/store/store.go
       Note: SQLite open with WAL/busy_timeout/FK (commit cbdc6a6)
     - Path: repo://internal/store/threads.go
@@ -45,6 +51,7 @@ LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 
@@ -411,3 +418,63 @@ across all threads an agent cares about.
 ### Technical details
 - `pollPageSize=500`, `pollInterval=200ms`. Scope default `involved,watching,watched-subforums`. `event_acks` PK agent_id.
 - `next_cursor` is emitted on every event row (and on the empty-poll row) so JSONL consumers can resume from any line.
+
+## Step 7: P6 metadata & search + idempotency
+
+This phase made metadata queryable and writes replay-safe. The `metadata_terms`
+index written since P4 is now queried via `--meta/--keyword/--ticket`; `post search`
+and cross-entity `search` work; and `--idempotency-key` collapses retried
+thread/post creates to the first result. The impact: agents can find threads by
+transcript/ticket/keyword and retry writes without duplicates.
+
+**Commit (code):** 37f0c85 — "feat(agentforum): P6 metadata & search …"
+
+### What I did
+- `internal/store/idempotency.go`: `GetIdempotencyRecord`/`SaveIdempotencyRecord` + `IdempotencyRecord`.
+- `internal/store/search.go`: `TermFilter` (multi-key OR), `SearchFilter`, `appendTermExists`/`metadataWhere` helpers, `SearchThreads` (title LIKE + terms), `SearchPosts` (join threads for subforum + body LIKE + terms), `postColumnsQualified` to avoid ambiguous `id`.
+- `internal/store/threads.go`: `ListThreadsFilter.Terms` + EXISTS clauses in `ListThreads`.
+- `internal/service/search.go`: `SearchInput`, `SearchThreads`/`SearchPosts`/`Search` (combined, entity-type selection); re-export `TermFilter`.
+- `internal/service/threads.go`+`posts.go`: `IdempotencyKey` on inputs; replay via cached JSON (`{thread,initial_post}` / `{post}`), save after create.
+- `internal/cli/helpers.go`: `buildTerms` (--meta k=v → key=k; --keyword → key=keywords; --ticket → keys=[ticket,external_refs.value]).
+- `internal/cli`: `thread create/list` + `post create` get `--idempotency-key`/`--meta`/`--keyword`/`--ticket`; new `post search` and top-level `search <text>` commands.
+- `internal/service/search_test.go`: idempotent thread+post replay (asserts 1 thread / 2 posts), metadata/keyword/ticket/AND/text search, combined search.
+
+### Why
+- Idempotency at the service boundary (check→create→save) means the store's atomic writers stay simple; the cached JSON response makes replay return the *exact* first result.
+- `--ticket` matching either `ticket` or `external_refs.value` shows the multi-key OR in `TermFilter` is worth the small extra generality.
+
+### What worked
+- Idempotency: create with `run_204-thread`, retry with different args → same `id`, 1 thread in DB; post idempotency likewise (1 reply, not 2).
+- `thread list --meta transcript_id=tr_892` / `--keyword caching` / `--ticket PLAT-431` → 1; `--meta ticket=NOPE` → 0.
+- `post search --meta turn_id=turn_21` → 1 post (right body); `search "locale" --entity post` → 1; `search "" --ticket PLAT-431` → thread; `search "" --subforum eng --keyword root-cause` → post.
+- `go test ./...` + `go vet` clean.
+
+### What didn't work
+- `SearchPosts` joined `threads` and selected bare `id` → `ambiguous column name: id`. Fixed with `postColumnsQualified` (`posts.id, …`).
+- The edit tool refused edits whose `oldText`/`newText` contained Go string literals with embedded double quotes ("must be object"); switched those edits to a Python patch. A known sharp edge to remember.
+- Test typo `Tems:` (for `Terms:`); fixed with sed.
+- Combined-search test asserted `threads=1` for text `"cache"`, but "Caching" ≠ contains "cache"; fixed by putting "Caching" in the post body and searching "caching".
+
+### What I learned
+- SQLite `LIKE` is case-insensitive for ASCII by default, so `search "caching"` matches title `Caching investigation`.
+- Qualifying columns in any JOIN query is mandatory even when the non-joined table isn't selected; `id` collides because `threads.id` exists.
+
+### What was tricky to build
+- Idempotency replay must unmarshal the cached JSON back into `*models.Thread`/`*models.Post` with their `map[string]any` metadata; JSON round-trips `map[string]any` fine, so replay returns the original metadata too.
+- AND-combined term filters each need their own `EXISTS` subquery with distinct placeholders; the `entity_type` placeholder is added once per filter before its keys.
+
+### What warrants a second pair of eyes
+- `SaveIdempotencyRecord` uses `INSERT OR REPLACE`; if a key collision happened between two *different* agents (keys are per-agent in the lookup but the PK is just `key`), one would overwrite the other's record. Keys should be globally unique (they're opaque/random per the brief); confirm or change the PK to `(key, agent_id)`.
+- `search` text uses unanchored `LIKE %text%`; no escaping of `%`/`_` in user text. Low risk for a trusted CLI but note it.
+
+### What should be done in the future
+- Escape `%`/`_` in search text or switch to a real FTS5 index for large datasets.
+- Add a `search --created-after` / `--limit` wired to `CreatedAfter` (store supports it; CLI flag not added yet).
+- Consider per-subforum JSON-Schema metadata validation (reserved `_` keys already enforced).
+
+### Code review instructions
+- Start in `internal/store/search.go` (`metadataWhere`, `SearchPosts`) and `internal/service/threads.go` (idempotency replay).
+- Validate: `make test`; then the P6 roundtrip (idempotent create, --meta/--keyword/--ticket, post search, combined search).
+
+### Technical details
+- `TermFilter{Keys, Value}`: OR over keys, AND over filters. Idempotency cached JSON: `{"thread":…,"initial_post":…}` and `{"post":…}`.
