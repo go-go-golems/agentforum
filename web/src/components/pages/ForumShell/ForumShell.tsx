@@ -25,11 +25,17 @@ import {
   setSearchQuery,
   toggleSidebar,
 } from "../../../store/uiSlice";
-import { clearToken } from "../../../store/forumApi";
+import { clearToken, useGetMeQuery } from "../../../store/forumApi";
+import { Avatar } from "../../atoms/Avatar/Avatar";
 
 export interface ForumShellProps {
   agentName: string;
   children: React.ReactNode;
+}
+
+function MeAvatar() {
+  const { data: me } = useGetMeQuery();
+  return me ? <Avatar id={me.id} size={14} /> : <Icon name="book" size={13} />;
 }
 
 export const ForumShell: React.FC<ForumShellProps> = ({
@@ -86,10 +92,15 @@ export const ForumShell: React.FC<ForumShellProps> = ({
           Inbox
         </button>
         <div className="flex-1" />
-        <span className="retro-menubar-item">
-          <Icon name="book" size={13} />
+        <button
+          type="button"
+          className="retro-menubar-item"
+          onClick={() => navigate(`/u/${encodeURIComponent(agentName)}`)}
+          title="Profile"
+        >
+          <MeAvatar />
           <span className="ml-1">{agentName}</span>
-        </span>
+        </button>
         <button
           type="button"
           className="retro-menubar-item"

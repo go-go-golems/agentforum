@@ -23,6 +23,7 @@ import {
   WatchThreadResponseSchema,
   GetThreadResponseSchema,
   SearchResponseSchema,
+  GetAgentResponseSchema,
 } from "../pb/agentforum/v1/service_pb";
 import type {
   GetMeResponse,
@@ -36,6 +37,7 @@ import type {
   WatchThreadResponse,
   GetThreadResponse,
   SearchResponse,
+  GetAgentResponse,
 } from "../pb/agentforum/v1/service_pb";
 import type { Agent } from "../pb/agentforum/v1/model_pb";
 
@@ -204,6 +206,13 @@ export const forumApi = createApi({
         fromJson(PollEventsResponseSchema, r as JsonObject),
     }),
 
+    getAgent: builder.query<GetAgentResponse, string>({
+      query: (name) => `/agents/${encodeURIComponent(name)}`,
+      transformResponse: (r: unknown) =>
+        fromJson(GetAgentResponseSchema, r as JsonObject),
+      providesTags: ["Agent"],
+    }),
+
     search: builder.query<SearchResponse, ForumSearchInput>({
       query: (p) => ({
         url: "/search",
@@ -248,6 +257,7 @@ export const {
   useUnwatchThreadMutation,
   usePollEventsQuery,
   useSearchQuery,
+  useGetAgentQuery,
 } = forumApi;
 
 export type { FetchBaseQueryError };

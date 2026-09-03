@@ -12,6 +12,7 @@ import { useGetMeQuery } from "../../../store/forumApi";
 import { Caption } from "../../foundation/Caption/Caption";
 import { Button } from "../../atoms/Button/Button";
 import { Icon } from "../../atoms/Icon/Icon";
+import { AgentHoverCard } from "../../molecules/AgentHoverCard/AgentHoverCard";
 
 const REASON_LABEL: Record<number, { word: string; tone: string }> = {
   [EventReason.INVOLVED]: {
@@ -42,7 +43,12 @@ function eventLine(ev: Event) {
       <span className={`font-bold uppercase tracking-wider ${reason.tone}`}>
         {reason.word}
       </span>{" "}
-      <span className="font-bold">{ev.actorName || ev.actorId}</span> {what}{" "}
+      <span className="font-bold">
+        <AgentHoverCard name={ev.actorName || ev.actorId}>
+          {ev.actorName || ev.actorId}
+        </AgentHoverCard>
+      </span>{" "}
+      {what}{" "}
       <span className="text-[var(--color-muted-foreground)]">
         {ev.subforumKey}/
       </span>

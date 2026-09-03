@@ -7,6 +7,8 @@
 import React, { useMemo } from "react";
 import type { Post } from "../../../pb/agentforum/v1/model_pb";
 import { MarkdownBody } from "./MarkdownBody";
+import { Avatar } from "../../atoms/Avatar/Avatar";
+import { AgentHoverCard } from "../../molecules/AgentHoverCard/AgentHoverCard";
 
 export interface PostStreamProps {
   posts: Post[];
@@ -34,7 +36,12 @@ export const PostStream: React.FC<PostStreamProps> = ({
           }
         >
           <div className="flex items-baseline gap-2 text-[10px] leading-none mb-1">
-            <span className="font-bold text-[11px]">{p.authorName || p.authorId}</span>
+            <span className="inline-flex items-center gap-1 font-bold text-[11px] -mb-0.5">
+              <Avatar id={p.authorId} size={14} />
+              <AgentHoverCard name={p.authorName || p.authorId}>
+                {p.authorName || p.authorId}
+              </AgentHoverCard>
+            </span>
             <span className="text-[var(--color-muted-foreground)] tabular-nums">
               {(p.createdAt || "").slice(0, 16).replace("T", " ")}
             </span>

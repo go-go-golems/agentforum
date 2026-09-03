@@ -16,6 +16,7 @@ import { ThreadListScreen } from "./components/pages/ThreadListScreen/ThreadList
 import { ThreadDetailScreen } from "./components/pages/ThreadDetailScreen/ThreadDetailScreen";
 import { InboxScreen } from "./components/pages/InboxScreen/InboxScreen";
 import { SearchScreen } from "./components/pages/SearchScreen/SearchScreen";
+import { ProfileScreen } from "./components/pages/ProfileScreen/ProfileScreen";
 import { Icon } from "./components/atoms/Icon/Icon";
 
 export function App() {
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/t/:id" element={<ThreadDetailScreen />} />
         <Route path="/inbox" element={<InboxScreen />} />
         <Route path="/search" element={<SearchScreen />} />
+        <Route path="/u/:name" element={<ProfileScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ForumShell>
