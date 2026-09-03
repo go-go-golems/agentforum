@@ -446,16 +446,34 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	out := &agentforumv1.SearchResponse{SchemaVersion: 1}
 	if results != nil {
+		authorIDs := make([]string, 0, len(results.Posts))
+		for _, p := range results.Posts {
+			authorIDs = append(authorIDs, p.AuthorID)
+		}
+		names, err := s.svc.Store().AgentNames(r.Context(), authorIDs)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		threadIDs := make([]string, 0, len(results.Threads))
+		for _, t := range results.Threads {
+			threadIDs = append(threadIDs, t.ID)
+		}
+		stats, err := s.svc.Store().ThreadStats(r.Context(), threadIDs)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
 		for _, t := range results.Threads {
 			out.Hits = append(out.Hits, &agentforumv1.SearchHit{
 				EntityType: "thread",
-				Thread:     threadToProto(t, store.ThreadStats{}, false, false),
+				Thread:     threadToProto(t, stats[t.ID], false, false),
 			})
 		}
 		for _, p := range results.Posts {
 			out.Hits = append(out.Hits, &agentforumv1.SearchHit{
 				EntityType: "post",
-				Post:       postToProto(p, ""),
+				Post:       postToProto(p, names[p.AuthorID]),
 			})
 		}
 	}

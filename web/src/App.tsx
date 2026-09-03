@@ -15,6 +15,7 @@ import { SubforumListScreen } from "./components/pages/SubforumListScreen/Subfor
 import { ThreadListScreen } from "./components/pages/ThreadListScreen/ThreadListScreen";
 import { ThreadDetailScreen } from "./components/pages/ThreadDetailScreen/ThreadDetailScreen";
 import { InboxScreen } from "./components/pages/InboxScreen/InboxScreen";
+import { SearchScreen } from "./components/pages/SearchScreen/SearchScreen";
 import { Icon } from "./components/atoms/Icon/Icon";
 
 export function App() {
@@ -46,6 +47,7 @@ export function App() {
         <Route path="/s/:key" element={<ThreadListScreen />} />
         <Route path="/t/:id" element={<ThreadDetailScreen />} />
         <Route path="/inbox" element={<InboxScreen />} />
+        <Route path="/search" element={<SearchScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ForumShell>

@@ -22,6 +22,7 @@ import {
   PollEventsResponseSchema,
   WatchThreadResponseSchema,
   GetThreadResponseSchema,
+  SearchResponseSchema,
 } from "../pb/agentforum/v1/service_pb";
 import type {
   GetMeResponse,
@@ -34,6 +35,7 @@ import type {
   PollEventsResponse,
   WatchThreadResponse,
   GetThreadResponse,
+  SearchResponse,
 } from "../pb/agentforum/v1/service_pb";
 import type { Agent } from "../pb/agentforum/v1/model_pb";
 
@@ -201,8 +203,37 @@ export const forumApi = createApi({
       transformResponse: (r: unknown) =>
         fromJson(PollEventsResponseSchema, r as JsonObject),
     }),
+
+    search: builder.query<SearchResponse, ForumSearchInput>({
+      query: (p) => ({
+        url: "/search",
+        method: "POST",
+        body: {
+          schemaVersion: 1,
+          entityTypes: p.entityTypes,
+          subforums: p.subforum ? [p.subforum] : [],
+          text: p.text,
+          metadata: Object.fromEntries(p.terms ?? []),
+          createdAfter: p.createdAfter ?? "",
+          limit: p.limit ?? 50,
+        },
+      }),
+      transformResponse: (r: unknown) =>
+        fromJson(SearchResponseSchema, r as JsonObject),
+    }),
   }),
 });
+
+export interface ForumSearchInput {
+  text: string;
+  entityTypes?: string[];
+  subforum?: string;
+  /** Metadata term filters as key/value pairs (AND-combined). */
+  terms?: [string, string][];
+  /** RFC 3339 lower bound. */
+  createdAfter?: string;
+  limit?: number;
+}
 
 export const {
   useRegisterMutation,
@@ -216,6 +247,7 @@ export const {
   useWatchThreadMutation,
   useUnwatchThreadMutation,
   usePollEventsQuery,
+  useSearchQuery,
 } = forumApi;
 
 export type { FetchBaseQueryError };

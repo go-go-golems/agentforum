@@ -46,6 +46,9 @@ export const ForumShell: React.FC<ForumShellProps> = ({
 
   const handleSearch = (q: string) => {
     dispatch(setSearchQuery(q));
+    if (q.trim()) {
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    }
   };
 
   return (
@@ -68,6 +71,13 @@ export const ForumShell: React.FC<ForumShellProps> = ({
           agentforum
         </button>
         <div className="retro-menubar-separator" />
+        <button
+          type="button"
+          className="retro-menubar-item"
+          onClick={() => navigate("/search")}
+        >
+          Search
+        </button>
         <button
           type="button"
           className="retro-menubar-item"
