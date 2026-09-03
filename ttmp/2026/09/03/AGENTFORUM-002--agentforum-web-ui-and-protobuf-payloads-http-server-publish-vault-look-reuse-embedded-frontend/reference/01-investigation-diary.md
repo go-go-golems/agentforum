@@ -455,3 +455,60 @@ Search was the last design-§7 screen without a face; profiles/avatars came from
 ### Technical details
 - Commits: 3b001be (W6), 703f710 (W6b). Screenshots: `screens/w6-filters-dialog.png`, `w6-search-metadata-filter.png`, `w6b-hover-card.png`, `w6b-profile.png`.
 - Live checks: metadata filter `ticket=PLAT-431` → thread hit with real post count + date; bob profile shows identicon + `model: other-agent`.
+
+## Step 8: W7 — embed + serve: the single binary
+
+This step closed the loop the design promised: one Go binary serving the
+API and the embedded web UI, with deep links surviving refresh and
+graceful shutdown on interrupt. The `serve` command is a Glazed command
+like every other; the UI is embedded behind the `embed` build tag.
+
+### Prompt Context
+
+**User prompt (verbatim):** "continue"
+
+**Assistant interpretation:** Proceed with the next phase, W7 (embed + serve), following the per-phase discipline.
+
+**Inferred user intent:** Complete the remaining ticket phases.
+
+### What I did
+- `internal/server/static.go`: `mountSPA()` + `spaHandler` — file server with SPA fallback (unknown non-`/v1` paths serve `index.html`); gated on `spaFS != nil`.
+- `internal/server/embed.go` (`//go:build embed`): `//go:embed embed/public` → `fs.Sub` → `spaFS` via `init()`. Plain builds stay API-only (keeps the UI out of test binaries).
+- Makefile: `build-web` (pnpm build + stage `web/dist` into `internal/server/embed/public`), `build-embed` (tagged build). `embed/public` gitignored — CI builds it (decision D7).
+- `internal/cli/serve.go`: `agentforum serve` — a `serve` section (`--listen`, env `AGENTFORUM_SERVE_LISTEN`, default `127.0.0.1:8080`) plus the shared connection section; announces the address before blocking (glazed rows flush at return), SIGINT/SIGTERM → `srv.Shutdown` with a 5 s drain so long-polls observe the context.
+- `setToken` guard in forumApi (see below).
+
+### Why
+Design §5.7/D7: single-binary distribution; dev loop stays `pnpm dev` with the `/v1` proxy.
+
+### What worked
+- Deep links — the gap that made the W4–W6 smoke host 404 on `/t/th_…` — now serve the SPA shell and the client router resolves them after refresh. Verified end to end.
+- Register-through-UI on a deep link preserves the URL across the reload.
+- Graceful shutdown: `kill -INT` → "received interrupt, shutting down…" → clean exit.
+
+### What didn't work
+- One observation of the register flow failing on the first deep-link test: the agent registered server-side (name later 409'd) but the browser ended on the register screen with an empty localStorage — consistent with `setToken(undefined)` storing the literal string `"undefined"`, which then 401'd getMe and triggered App's `clearToken()`. Not reproducible afterward (three consecutive clean runs); fixed defensively by guarding `setToken` on the `af_` prefix. Root cause unproven — flagged for review.
+- First serve-command draft used the `fields` package's section API (`fields.NewSection`, `fields.WithField`) which does not exist — the section API is `schema.NewSection` + `schema.WithFields` (the same one `config.ConnectionSection` uses). Also `schema.NewSection` returns `(section, error)` — no wrapper `nil` needed.
+- `glazed/pkg/values` is not a package; the values API lives at `glazed/pkg/cmds/values`.
+
+### What I learned
+- The `embed` build tag cleanly excludes 58 MB of UI from test binaries while `go build -tags embed` produces the shippable artifact — the same trade publish-vault makes.
+- A server command inside the Glazed contract needs one deviation: output rows flush only when the command returns, so the "listening on" line goes straight to stdout before blocking.
+
+### What was tricky to build
+- Observing a page that reloads itself during a scripted test: `waitFor` timeouts interleave with the reload, and a mid-flow snapshot can show register-screen state that predates the token store. The reliable procedure is to let the flow settle (2.5 s) and then read localStorage + URL.
+
+### What warrants a second pair of eyes
+- The unexplained register failure above: if `res.token` can be undefined from a successful `unwrap()`, something in the RTK transform path can drop fields — worth a unit test on `RegisterAgentResponseSchema` decoding when the wire omits `token`.
+- The `serve` command ignores the glazed processor for output (no rows); confirm nothing downstream expects at least one row.
+
+### What should be done in the future
+- W8: help entries (serve + web-ui), README, full gate, reMarkable bundle.
+- CI: build-web + build-embed in the pipeline; a drift check that `buf generate` is clean.
+
+### Code review instructions
+- Start: `internal/server/static.go` (fallback logic), `internal/server/embed.go` (tag), `internal/cli/serve.go` (sections, shutdown).
+- Validate: `make build-embed && ./agentforum serve --db /tmp/x.db` then deep-link `/t/<id>` and `curl /healthz`.
+
+### Technical details
+- Commit: e3d4f60. Binary: 58 MB (MathJax + highlight.js chunks). Screenshot: `screens/w7-single-binary.png`.

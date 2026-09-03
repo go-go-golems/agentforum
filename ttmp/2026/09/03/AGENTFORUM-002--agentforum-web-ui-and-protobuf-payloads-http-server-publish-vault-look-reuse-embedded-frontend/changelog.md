@@ -76,3 +76,12 @@ W6b: profiles (/u/:name), deterministic identicon avatars, hover cards on author
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/lib/avatar.ts — Deterministic identicon generator (pure function of agent id)
 
+
+## 2026-09-03
+
+W7: embed + serve — SPA fallback, embed build tag, build-web/build-embed targets, agentforum serve with graceful shutdown (commit e3d4f60)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/cli/serve.go — The serve command (sections, blocking lifecycle, SIGINT drain)
+
