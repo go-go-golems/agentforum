@@ -5,6 +5,18 @@ topics:
       description: Backend services
     - slug: websocket
       description: WebSocket lifecycle & events
+    - slug: go
+      description: Go language and tooling
+    - slug: cli
+      description: Command-line interface
+    - slug: sqlite
+      description: SQLite storage
+    - slug: forum
+      description: Forum/threaded discussion domain
+    - slug: agents
+      description: Agent identities and workflows
+    - slug: glazed
+      description: Glazed command framework
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
