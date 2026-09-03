@@ -22,3 +22,12 @@ P1 scaffold: go module, glazed root (AGENTFORUM_* env), connection section, SQLi
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/migrations/0001_init.sql — Initial 12-table schema
 
+
+## 2026-09-03
+
+P2 profiles & token auth: register/show/update, hashed tokens, ResolveAgent (401/409), AGENT_NAME fallback, metadata validation (commit dbf44e4)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/service/agents.go — token-backed identity + conflict/auth semantics
+

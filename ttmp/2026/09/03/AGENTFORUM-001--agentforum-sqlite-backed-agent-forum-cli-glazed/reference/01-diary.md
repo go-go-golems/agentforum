@@ -13,8 +13,14 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
+    - Path: repo://internal/cli/profile.go
+      Note: profile register/show/update commands (commit dbf44e4)
     - Path: repo://internal/cli/root.go
       Note: Glazed root + AppName env loading + openService (commit cbdc6a6)
+    - Path: repo://internal/service/agents.go
+      Note: Register/ResolveAgent/UpdateMe business rules (commit dbf44e4)
+    - Path: repo://internal/store/agents.go
+      Note: agent CRUD + token-hash lookup (commit dbf44e4)
     - Path: repo://internal/store/migrations.go
       Note: embedded migration runner (commit cbdc6a6)
     - Path: repo://internal/store/store.go
@@ -25,6 +31,7 @@ LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 # Diary
@@ -168,3 +175,60 @@ that opens/migrates a database and prints structured output.
 - DSN: `file:<path>?_pragma=journal_mode=WAL&_pragma=busy_timeout=5000&_pragma=foreign_keys=on`.
 - Env mapping: `AGENTFORUM_<UPPER(FIELD_WITH_UNDERSCORES)>`.
 - Tables: agents, subforums, threads, posts, participants, watches, subforum_watches, events, event_acks, metadata_terms, idempotency_keys, schema_migrations.
+
+## Step 3: P2 profiles & token auth
+
+This phase gave agents identities. Registration mints an `af_…` token, stores only
+its SHA-256 hash, and returns the plaintext once. `profile show`/`update`
+authenticate by token; a duplicate name returns a conflict; `AGENT_NAME` is honoured
+as a display-name hint only. The impact is that every later command can call
+`svc.ResolveAgent(token)` to get the acting agent.
+
+**Commit (code):** dbf44e4 — "feat(agentforum): P2 profiles & token auth …"
+
+### What I did
+- `internal/store/agents.go`: Create/Get (by name/id/token-hash)/Update + `scanAgent` + `ErrNoRows`; `internal/store/json.go` + `parseTime` for JSON/time columns.
+- `internal/service/errors.go`: `ErrUnauthenticated/ErrNotFound/ErrConflict/ErrInvalidInput`.
+- `internal/service/metadata.go`: validateMetadata (size/depth/reserved-`_`/key shape).
+- `internal/service/agents.go`: `Register` (409 on dup name via pre-check + UNIQUE fallback), `GetMe`, `UpdateMe`, `GetAgentByName`, `ResolveAgent` (401 on bad/missing).
+- `internal/cli/profile.go`: register/show/update; `agentRow` helper; `AGENT_NAME` fallback for `--name`.
+- `internal/cli/helpers.go`: `buildMetadata` (file + `--meta k=v`), `readBodyFile`, `metadataJSON`.
+- Root: error-collecting `add()` builder; `SilenceErrors+SilenceUsage` for clean one-line errors.
+- `internal/service/agents_test.go`: register→auth→conflict→unauth→invalid→reserved-key→update.
+
+### Why
+- Token-as-hash means a DB leak grants nothing; `AGENT_NAME` stays a casual hint, not auth (Decision Records).
+- One `ResolveAgent` entry point keeps every authenticated command uniform and the future HTTP server a thin adapter.
+
+### What worked
+- Full roundtrip green: register→show→update; duplicate→`conflict` (exit 1); `AGENT_NAME` fallback→name=reviewer; bad token→`unauthenticated` (exit 1).
+- After `SilenceErrors/SilenceUsage`, errors print as one clean line (no usage dump).
+- `go test ./...` + `go vet` clean.
+
+### What didn't work
+- `types.Row` is an `*orderedmap.OrderedMap`, not a slice, so my first `append(row, …)` for the optional token field failed to compile; fixed by building a `[]types.MapRowPair` and `types.NewRow(pairs...)`.
+- A path typo (`wensen-2026…` vs `wesen/2026…`) created a bogus directory tree; the `write` tool auto-makes parents. Caught immediately, `mv`'d the file, `rm -rf`'d the bogus tree.
+
+### What I learned
+- `TypeStringList` binds as a cobra `StringSlice` flag → `--meta k=v --meta k2=v2` collects cleanly into `[]string`.
+- `models.Agent.TokenHash` has `json:"-"`, so public agent output never leaks the hash even though the struct carries it.
+
+### What was tricky to build
+- Mapping a SQLite UNIQUE violation to `ErrConflict` portably: `modernc.org/sqlite` errors contain `"UNIQUE constraint"`, so `isUniqueViolation` string-matches. This is fragile if the driver changes wording; flagged for a future typed-error check.
+- `UpdateMe` "non-empty updates, empty unchanged" semantics: simple and correct for the milestone, but cannot clear a field. Documented in help.
+
+### What warrants a second pair of eyes
+- `isUniqueViolation` string matching — confirm it covers both `agents.name` and `agents.token_hash` UNIQUE failures (token collisions are astronomically unlikely but should still map to conflict, not a raw error).
+- `ResolveAgent` trims whitespace from tokens; a token with leading/trailing spaces in env would silently work — acceptable, but note it.
+
+### What should be done in the future
+- Replace `isUniqueViolation` string matching with a typed sqlite error code check if the driver exposes one.
+- Add `profile rotate-token` and field-clearing semantics if agents need them.
+
+### Code review instructions
+- Start in `internal/service/agents.go` (`Register`, `ResolveAgent`) and `internal/store/agents.go` (`scanAgent`).
+- Validate: `make test`; then the roundtrip in the diary's P2 verification (register→show→update→duplicate→bad token).
+
+### Technical details
+- Token: `af_` + 32 random bytes base64url; stored `sha256` hex. ID: `ag_` + ULID.
+- Errors map to future HTTP: 401 `ErrUnauthenticated`, 404 `ErrNotFound`, 409 `ErrConflict`, 422 `ErrInvalidInput`.
