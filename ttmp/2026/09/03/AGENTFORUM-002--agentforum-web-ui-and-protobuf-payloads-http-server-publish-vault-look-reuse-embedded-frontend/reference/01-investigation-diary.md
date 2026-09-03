@@ -212,3 +212,67 @@ Design §5: the server is an adapter; business rules stay in the service. This p
 ### Technical details
 - Commit: ac4c9e6.
 - Live walkthrough (loopback :18099): register → `af_…` token; create subforum (201); create thread with `Idempotency-Key` header → 201 with `postCount:"1"`, `watching:true`, `participating:true`, `authorName:"smoke"`; poll self-exclusion → `{"schemaVersion":1,"nextCursor":"2"}`; bad token → `{"code":"unauthenticated", …}`.
+
+## Step 4: W3 — web scaffold (publish-vault copy), forumApi, shell, register flow
+
+This step materialized the design's copy map: 64 files copied from
+publish-vault/web (styles, atoms, foundation, molecules, layout, ui, the
+whole widget IR tree, hooks, lib, store factory), adapted where the map
+says adapt, and extended with the forum data layer and first screens. The
+UI was verified end-to-end in a real browser against the W2 server.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2)
+
+**Assistant interpretation:** Same directive — implement phase W3 with per-phase commit, diary, and slips.
+
+**Inferred user intent:** See Step 2.
+
+### What I did
+- Executed the §6.1 copy: `styles/` + `index.css`, `components/{atoms,foundation,ui,layout}`, 7 molecules, `widgets/` whole tree, `hooks/redux.ts`, `lib/{utils,highlightLanguages}.ts` + `vendor/highlight-languages`, `store/store.ts` verbatim.
+- Adapted: `uiSlice.ts` (activeNoteSlug → activeThread), `defaultRegistry.ts` (dropped the 4 vault-only adapters: NoteHtml, FrontmatterPanel, NoteCard, BacklinksPanel), `vite.config.ts` (react + tailwind v4, `/v1` proxy to :8080, no manus/jsx-loc plugins), `package.json` (deps per §6.6; `clsx ^2.1.1` — `^2.2.1` does not exist).
+- Wrote `store/forumApi.ts` (RTK Query; `fromJson` in transformResponse; token in localStorage), `types/index.ts` shim (FileNode/TagCount widget props only), `main.tsx`, `App.tsx` (auth gate), `ForumShell`, `ForumSidebar`, `RegisterScreen`, `SubforumListScreen`, `ThreadListScreen` (DataTable molecule).
+- Added `Server.Router()` accessor (used by the smoke host; W7 embedding will reuse it).
+- Browser verification (Playwright): register screen → registered as "browser-agent" → ForumShell with sidebar (Engineering, count 2) → thread list through DataTable (titles, post counts, timestamps, breadcrumbs).
+- Deleted vault-fixture tests (`defaultRegistry.test.ts`, `shell.test.ts` — they read reader-page/recent-page fixtures exercising vault widgets).
+
+### Why
+Design §6: copy now, unify later. W3 proves the copied look + widgets work against the real API and the generated proto types.
+
+### What worked
+- The verbatim-copied components compiled after exactly three mechanical fixes (see below); the retro look and chrome classes needed zero changes.
+- The vitest round-trip suite reads the same `testdata/protojson` fixtures as the Go suite — both languages now assert identical wire bytes, closing the W1 follow-up.
+- Browser flow worked first try after typecheck: register → token → shell → real subforum/thread data.
+
+### What didn't work
+- Page files initially imported atoms with 3× `../` (pages sit at `src/components/pages/X/`, so 2× is correct) — ~25 "Cannot find module" errors, fixed with sed.
+- `lib/highlightLanguages.ts` imports `src/vendor/highlight-languages/*` which was not in the copy map — copied it (map gap, noted).
+- protoc-gen-es v2.14 with `target=ts` generates pure types + `…Schema` descriptor constants; there is NO static `Message.fromJson()` method. Correct API is the standalone `fromJson(Schema, json)` function (and `toJson(Schema, msg)`). The skill's `ShowList.fromJson(...)` example reflects the older class-based codegen. Both forumApi and the test were switched to the function form.
+- `clsx ^2.2.1` does not exist on npm (latest 2.1.1) — `ERR_PNPM_NO_MATCHING_VERSION`.
+- tsconfig lacked `"target"` — `Set` iteration in a copied widget test demanded `es2015+`; set `target: "es2022"`.
+- `Caption` only accepts `as="span"|"h3"|"h4"|"div"` — not `h1`.
+- Playwright clicked a 1Password status div when given a stale snapshot ref; re-finding the button by role fixed it (operator error, not code).
+
+### What I learned
+- The v2 codegen split (types vs runtime descriptors) makes `import type {...}` + `import { …Schema }` the standard pattern; `GenMessage` extends `DescMessage`, which is why `fromJson(schema, json)` accepts the generated `…Schema` const.
+- publish-vault's component tree is genuinely portable: the only structural work was the pages/organisms layer, which the design already flagged as "write fresh."
+
+### What was tricky to build
+- The RTK `getMe` transform: the wire response is `GetMeResponse{agent}` but the hook should expose the `Agent`. Solved by decoding the full response and returning `.agent` inside `transformResponse` (cache still holds a proto message). A 401 there routes to the register screen via `App`'s error check.
+- Token lifecycle without a refresh flow: register stores the token and reloads (simplest correct remount); the shell's forget button clears it. Documented per D8.
+
+### What warrants a second pair of eyes
+- `forumApi.getMe`'s transformResponse has a defensive fallback (`r as Agent`) if the envelope shape changes — verify it never masks a schema drift (the round-trip tests should catch it first).
+- The `types/index.ts` shim keeps copied molecules compiling; if it grows beyond widget props it violates the "no wire mirrors" rule — watch it in review.
+
+### What should be done in the future
+- W4: thread detail screen (PostStream organism + composer), IR-driven thread list, watch toggles in the UI.
+- Revisit `pollEvents` query once the inbox loop (useEventStream) lands — the query form may be redundant.
+
+### Code review instructions
+- Start: `web/src/store/forumApi.ts` (data layer), `web/src/App.tsx` (auth gate), then `ForumShell`/`ForumSidebar`.
+- Validate: `cd web && pnpm check && pnpm test && pnpm build`; browser flow per diary above.
+
+### Technical details
+- Commit: 5a643c1. Copied 64 source files (+ vendor tree + generated pb already present). Build: 1686 modules, dist ≈ 484 kB JS (152 kB gzip) + 40 kB CSS.

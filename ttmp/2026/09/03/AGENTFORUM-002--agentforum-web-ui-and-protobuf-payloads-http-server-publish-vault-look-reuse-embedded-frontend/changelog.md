@@ -31,3 +31,12 @@ W2: HTTP server (stdlib net/http, protojson transport, bearer auth, error envelo
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/server/handlers.go — Full /v1 endpoint surface over the service layer
 
+
+## 2026-09-03
+
+W3: web scaffold — publish-vault copy (64 files), forumApi RTK layer, ForumShell/register/subforum/thread-list screens, vitest round-trip suite, browser-verified flow (commit 5a643c1)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — RTK Query data layer over generated proto types
+
