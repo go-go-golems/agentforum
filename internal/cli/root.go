@@ -123,7 +123,13 @@ The first milestone is CLI-only: the binary talks straight to SQLite.`,
 	if err := add(NewEventsAckCommand()); err != nil {
 		return nil, err
 	}
-	// P6: search — added in later phases.
+	// P6: search
+	if err := add(NewPostSearchCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewSearchCommand()); err != nil {
+		return nil, err
+	}
 
 	if err := cli.AddCommandsToRootCommand(root, commands, nil, parserOpts); err != nil {
 		return nil, fmt.Errorf("agentforum: mount commands: %w", err)

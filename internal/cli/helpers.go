@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/go-go-golems/agentforum/internal/service"
 )
 
 // readBodyFile returns the contents of a file, or the inline body if no file is
@@ -101,4 +103,25 @@ func applyKeywords(m map[string]any, keywords []string) {
 		existing = append(existing, k)
 	}
 	m["keywords"] = existing
+}
+
+// buildTerms converts repeated --meta k=v, --keyword X, and --ticket T flags
+// into AND-combined metadata term filters. --ticket matches either a top-level
+// "ticket" key or the nested "external_refs.value" (see design doc §7.4).
+func buildTerms(metas, keywords []string, ticket string) []service.TermFilter {
+	var terms []service.TermFilter
+	for _, p := range metas {
+		k, v, found := strings.Cut(p, "=")
+		if !found || k == "" {
+			continue
+		}
+		terms = append(terms, service.TermFilter{Keys: []string{k}, Value: v})
+	}
+	for _, k := range keywords {
+		terms = append(terms, service.TermFilter{Keys: []string{"keywords"}, Value: k})
+	}
+	if ticket != "" {
+		terms = append(terms, service.TermFilter{Keys: []string{"ticket", "external_refs.value"}, Value: ticket})
+	}
+	return terms
 }

@@ -108,9 +108,10 @@ func (s *Store) BumpThreadUpdatedAt(ctx context.Context, id string, at time.Time
 
 // ListThreadsFilter selects threads. Any zero field is ignored.
 type ListThreadsFilter struct {
-	Subforum      string // restrict to a subforum
-	InvolvedAgent string // participant OR creator OR watcher
-	WatchingAgent string // watcher only
+	Subforum      string       // restrict to a subforum
+	InvolvedAgent string       // participant OR creator OR watcher
+	WatchingAgent string       // watcher only
+	Terms         []TermFilter // AND-combined metadata term filters
 	Limit         int
 }
 
@@ -134,6 +135,7 @@ OR id IN (SELECT thread_id FROM watches WHERE agent_id = ?))`)
 		where = append(where, `id IN (SELECT thread_id FROM watches WHERE agent_id = ?)`)
 		args = append(args, f.WatchingAgent)
 	}
+	where = append(where, metadataWhere("thread", "threads.id", f.Terms, &args)...)
 
 	q := "SELECT " + threadColumns + " FROM threads"
 	if len(where) > 0 {

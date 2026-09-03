@@ -47,14 +47,15 @@ func postRow(p *models.Post) types.Row {
 type ThreadCreateCommand struct{ *cmds.CommandDescription }
 
 type threadCreateSettings struct {
-	Subforum     string   `glazed:"subforum"`
-	Title        string   `glazed:"title"`
-	Body         string   `glazed:"body"`
-	BodyFile     string   `glazed:"body-file"`
-	MetadataFile string   `glazed:"metadata-file"`
-	Meta         []string `glazed:"meta"`
-	Keyword      []string `glazed:"keyword"`
-	Watch        bool     `glazed:"watch"`
+	Subforum       string   `glazed:"subforum"`
+	Title          string   `glazed:"title"`
+	Body           string   `glazed:"body"`
+	BodyFile       string   `glazed:"body-file"`
+	MetadataFile   string   `glazed:"metadata-file"`
+	Meta           []string `glazed:"meta"`
+	Keyword        []string `glazed:"keyword"`
+	Watch          bool     `glazed:"watch"`
+	IdempotencyKey string   `glazed:"idempotency-key"`
 }
 
 func NewThreadCreateCommand() (*ThreadCreateCommand, error) {
@@ -83,6 +84,7 @@ Examples:
 			fields.New("meta", fields.TypeStringList, fields.WithHelp("Repeated key=value thread metadata pairs")),
 			fields.New("keyword", fields.TypeStringList, fields.WithHelp("Repeated keyword (added to metadata.keywords)")),
 			fields.New("watch", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Also watch the new thread")),
+			fields.New("idempotency-key", fields.TypeString, fields.WithHelp("Idempotency key; a retried create returns the first result")),
 		),
 		cmds.WithSections(sec),
 	)}, nil
@@ -122,7 +124,7 @@ func (c *ThreadCreateCommand) RunIntoGlazeProcessor(
 	}
 	thread, post, err := svc.CreateThread(ctx, agent, service.CreateThreadInput{
 		Subforum: s.Subforum, Title: s.Title, Body: body,
-		Metadata: threadMeta, Watch: s.Watch,
+		Metadata: threadMeta, Watch: s.Watch, IdempotencyKey: s.IdempotencyKey,
 	})
 	if err != nil {
 		return err
@@ -138,10 +140,13 @@ func (c *ThreadCreateCommand) RunIntoGlazeProcessor(
 type ThreadListCommand struct{ *cmds.CommandDescription }
 
 type threadListSettings struct {
-	Involved bool   `glazed:"involved"`
-	Watching bool   `glazed:"watching"`
-	Subforum string `glazed:"subforum"`
-	Limit    int    `glazed:"limit"`
+	Involved bool     `glazed:"involved"`
+	Watching bool     `glazed:"watching"`
+	Subforum string   `glazed:"subforum"`
+	Meta     []string `glazed:"meta"`
+	Keyword  []string `glazed:"keyword"`
+	Ticket   string   `glazed:"ticket"`
+	Limit    int      `glazed:"limit"`
 }
 
 func NewThreadListCommand() (*ThreadListCommand, error) {
@@ -165,6 +170,9 @@ Examples:
 			fields.New("involved", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Threads the agent created, posted in, or watches")),
 			fields.New("watching", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Threads the agent explicitly watches")),
 			fields.New("subforum", fields.TypeString, fields.WithHelp("Restrict to a subforum key")),
+			fields.New("meta", fields.TypeStringList, fields.WithHelp("Repeated key=value metadata filters (AND)")),
+			fields.New("keyword", fields.TypeStringList, fields.WithHelp("Repeated keyword filter (matches metadata.keywords)")),
+			fields.New("ticket", fields.TypeString, fields.WithHelp("Filter by ticket (matches metadata.ticket or external_refs.value)")),
 			fields.New("limit", fields.TypeInteger, fields.WithDefault(0), fields.WithHelp("Max threads (0 = unlimited)")),
 		),
 		cmds.WithSections(sec),
@@ -196,7 +204,8 @@ func (c *ThreadListCommand) RunIntoGlazeProcessor(
 		}
 	}
 	threads, err := svc.ListThreads(ctx, agent, service.ListThreadsOptions{
-		Involved: s.Involved, Watching: s.Watching, Subforum: s.Subforum, Limit: s.Limit,
+		Involved: s.Involved, Watching: s.Watching, Subforum: s.Subforum,
+		Terms: buildTerms(s.Meta, s.Keyword, s.Ticket), Limit: s.Limit,
 	})
 	if err != nil {
 		return err

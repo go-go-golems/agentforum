@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,12 +15,13 @@ import (
 
 // CreateThreadInput is the service-level argument for opening a thread.
 type CreateThreadInput struct {
-	Subforum     string
-	Title        string
-	Body         string
-	Metadata     map[string]any // thread metadata
-	PostMetadata map[string]any // opening-post metadata
-	Watch        bool
+	Subforum       string
+	Title          string
+	Body           string
+	Metadata       map[string]any // thread metadata
+	PostMetadata   map[string]any // opening-post metadata
+	Watch          bool
+	IdempotencyKey string // optional; a retried write returns the first result
 }
 
 // CreateThread opens a thread and its opening post atomically. The subforum
@@ -44,6 +46,22 @@ func (s *Service) CreateThread(ctx context.Context, agent *models.Agent, in Crea
 	}
 
 	now := time.Now().UTC()
+
+	// Idempotency: a retried create with the same key returns the first result.
+	if in.IdempotencyKey != "" {
+		if rec, err := s.store.GetIdempotencyRecord(ctx, in.IdempotencyKey, agent.ID); err == nil && rec != nil {
+			var resp struct {
+				Thread      *models.Thread `json:"thread"`
+				InitialPost *models.Post   `json:"initial_post"`
+			}
+			if err := json.Unmarshal([]byte(rec.Response), &resp); err == nil && resp.Thread != nil {
+				return resp.Thread, resp.InitialPost, nil
+			}
+		} else if err != nil && !errors.Is(err, store.ErrNoRows) {
+			return nil, nil, err
+		}
+	}
+
 	thread := &models.Thread{
 		ID:        id.NewThreadID(),
 		Subforum:  in.Subforum,
@@ -61,9 +79,20 @@ func (s *Service) CreateThread(ctx context.Context, agent *models.Agent, in Crea
 		Metadata:  in.PostMetadata,
 		CreatedAt: now,
 	}
-	return s.store.CreateThreadWithPost(ctx, store.CreateThreadWithPostInput{
+	th, p, err := s.store.CreateThreadWithPost(ctx, store.CreateThreadWithPostInput{
 		Thread: thread, Post: post, Watch: in.Watch,
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if in.IdempotencyKey != "" {
+		respJSON, _ := json.Marshal(map[string]any{"thread": th, "initial_post": p})
+		_ = s.store.SaveIdempotencyRecord(ctx, &store.IdempotencyRecord{
+			Key: in.IdempotencyKey, AgentID: agent.ID, Entity: "thread",
+			EntityID: th.ID, Response: string(respJSON), CreatedAt: now,
+		})
+	}
+	return th, p, nil
 }
 
 // ListThreadsOptions selects threads. Involved/Watching are agent-scoped.
@@ -71,12 +100,13 @@ type ListThreadsOptions struct {
 	Involved bool
 	Watching bool
 	Subforum string
+	Terms    []TermFilter
 	Limit    int
 }
 
 // ListThreads returns threads matching opts. Involved/Watching require an agent.
 func (s *Service) ListThreads(ctx context.Context, agent *models.Agent, opts ListThreadsOptions) ([]*models.Thread, error) {
-	f := store.ListThreadsFilter{Subforum: opts.Subforum, Limit: opts.Limit}
+	f := store.ListThreadsFilter{Subforum: opts.Subforum, Terms: opts.Terms, Limit: opts.Limit}
 	if opts.Involved && agent != nil {
 		f.InvolvedAgent = agent.ID
 	}

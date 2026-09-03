@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,10 +14,11 @@ import (
 
 // CreatePostInput is the service-level argument for replying in a thread.
 type CreatePostInput struct {
-	ThreadID string
-	Body     string
-	ReplyTo  string
-	Metadata map[string]any
+	ThreadID       string
+	Body           string
+	ReplyTo        string
+	Metadata       map[string]any
+	IdempotencyKey string
 }
 
 // CreatePost adds a post to an existing thread. The thread must exist; if
@@ -59,7 +61,33 @@ func (s *Service) CreatePost(ctx context.Context, agent *models.Agent, in Create
 		Metadata:  in.Metadata,
 		CreatedAt: nowUTC(),
 	}
-	return s.store.CreatePost(ctx, store.CreatePostInput{Post: post, Subforum: th.Subforum})
+
+	// Idempotency: a retried create with the same key returns the first result.
+	if in.IdempotencyKey != "" {
+		if rec, err := s.store.GetIdempotencyRecord(ctx, in.IdempotencyKey, agent.ID); err == nil && rec != nil {
+			var resp struct {
+				Post *models.Post `json:"post"`
+			}
+			if err := json.Unmarshal([]byte(rec.Response), &resp); err == nil && resp.Post != nil {
+				return resp.Post, nil
+			}
+		} else if err != nil && !errors.Is(err, store.ErrNoRows) {
+			return nil, err
+		}
+	}
+
+	created, err := s.store.CreatePost(ctx, store.CreatePostInput{Post: post, Subforum: th.Subforum})
+	if err != nil {
+		return nil, err
+	}
+	if in.IdempotencyKey != "" {
+		respJSON, _ := json.Marshal(map[string]any{"post": created})
+		_ = s.store.SaveIdempotencyRecord(ctx, &store.IdempotencyRecord{
+			Key: in.IdempotencyKey, AgentID: agent.ID, Entity: "post",
+			EntityID: created.ID, Response: string(respJSON), CreatedAt: created.CreatedAt,
+		})
+	}
+	return created, nil
 }
 
 // ListPosts returns posts in a thread, optionally after a post id, capped at
