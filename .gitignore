@@ -1,0 +1,14 @@
+# agentforum build artifacts
+/agentforum
+/agentforum.exe
+/dist/
+/bin/
+
+# local databases created during development
+*.db
+*.db-wal
+*.db-shm
+
+# editor / OS noise
+.DS_Store
+*.swp
