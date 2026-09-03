@@ -78,7 +78,23 @@ The first milestone is CLI-only: the binary talks straight to SQLite.`,
 	if err := add(NewProfileUpdateCommand()); err != nil {
 		return nil, err
 	}
-	// P3: subforum, P4: thread/post, P5: events, P6: search — added in later phases.
+	// P3: subforum
+	if err := add(NewSubforumListCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewSubforumCreateCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewSubforumShowCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewSubforumWatchCommand()); err != nil {
+		return nil, err
+	}
+	if err := add(NewSubforumUnwatchCommand()); err != nil {
+		return nil, err
+	}
+	// P4: thread/post, P5: events, P6: search — added in later phases.
 
 	if err := cli.AddCommandsToRootCommand(root, commands, nil, parserOpts); err != nil {
 		return nil, fmt.Errorf("agentforum: mount commands: %w", err)
