@@ -31,3 +31,12 @@ P2 profiles & token auth: register/show/update, hashed tokens, ResolveAgent (401
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/service/agents.go — token-backed identity + conflict/auth semantics
 
+
+## 2026-09-03
+
+P3 subforums: list/create/show + watch/unwatch with key validation and metadata (commit a01d81c)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/subforums.go — subforum + subforum_watches SQL
+

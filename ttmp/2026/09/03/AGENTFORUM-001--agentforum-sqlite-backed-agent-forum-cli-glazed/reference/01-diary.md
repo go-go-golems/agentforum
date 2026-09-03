@@ -17,8 +17,12 @@ RelatedFiles:
       Note: profile register/show/update commands (commit dbf44e4)
     - Path: repo://internal/cli/root.go
       Note: Glazed root + AppName env loading + openService (commit cbdc6a6)
+    - Path: repo://internal/cli/subforum.go
+      Note: subforum list/create/show/watch/unwatch (commit a01d81c)
     - Path: repo://internal/service/agents.go
       Note: Register/ResolveAgent/UpdateMe business rules (commit dbf44e4)
+    - Path: repo://internal/service/subforums.go
+      Note: subforum CRUD + watch rules (commit a01d81c)
     - Path: repo://internal/store/agents.go
       Note: agent CRUD + token-hash lookup (commit dbf44e4)
     - Path: repo://internal/store/migrations.go
@@ -31,6 +35,7 @@ LastUpdated: 2026-09-03T16:40:29.043612152-04:00
 WhatFor: Record the implementation journey so review and continuation are straightforward.
 WhenToUse: Read before resuming work on AGENTFORUM-001.
 ---
+
 
 
 
@@ -232,3 +237,51 @@ as a display-name hint only. The impact is that every later command can call
 ### Technical details
 - Token: `af_` + 32 random bytes base64url; stored `sha256` hex. ID: `ag_` + ULID.
 - Errors map to future HTTP: 401 `ErrUnauthenticated`, 404 `ErrNotFound`, 409 `ErrConflict`, 422 `ErrInvalidInput`.
+
+## Step 4: P3 subforums + watch
+
+Subforums are now first-class: a user-chosen `key` plus title/description/metadata,
+with list/create/show and explicit subforum watch/unwatch. The impact is that
+threads (P4) have a home and the watched-subforum event reason (P5) has a basis.
+
+**Commit (code):** a01d81c — "feat(agentforum): P3 subforums …"
+
+### What I did
+- `internal/store/subforums.go`: Create/List/Get/Update + `scanSubforum`; subforum_watches Watch/Unwatch/IsWatching/WatchedSubforumKeys.
+- `internal/service/subforums.go`: `CreateSubforum` (key regex `^[a-z0-9][a-z0-9-]{0,62}$`, metadata validation, 409 on dup), `List/Get` (404), `Watch/Unwatch` (404 if missing, idempotent).
+- `internal/cli/subforum.go`: `subforum list/create/show/watch/unwatch`; positional `key` arg via `fields.WithIsArgument(true)`; `subforumRow` + `statusRow` helpers.
+- Wired 5 commands into the root `add()` builder.
+- `internal/service/subforums_test.go`: create/conflict/bad-key/list/get-404/watch-idempotent/unwatch-idempotent.
+
+### Why
+- Keyed-by-`key` (not ULID) keeps subforums ergonomic in the CLI (`subforum show engineering`) and URL-safe.
+- Watch is independent of participation, matching the brief's distinction; idempotent so retried agents don't double-subscribe.
+
+### What worked
+- Roundtrip green: create (with `--meta`), list (key-ordered), show, watch→`watching`, unwatch→`not_watching`; dup key→`conflict`; bad key→`invalid input`; watch missing→`not found`; unauth create→`unauthenticated`.
+- `go test ./...` + `go vet` clean.
+
+### What didn't work
+- First `scanSubforum` matched `sql.ErrNoRows` by error string; replaced with `errors.Is(err, sql.ErrNoRows)` for robustness.
+
+### What I learned
+- Positional args land in the default section under their field name, so `s.Key` (`glazed:"key"`) just works alongside flags.
+- `INSERT OR IGNORE` makes watch idempotent at the SQL layer without a read-then-write race.
+
+### What was tricky to build
+- Key validation regex: must reject leading hyphen and spaces/uppercase so keys stay URL- and label-safe; `Bad Key!` and `-leading` both correctly rejected.
+
+### What warrants a second pair of eyes
+- `CreateSubforum` allows any authenticated agent to create subforums (design §2.3). Confirm that's acceptable before any public exposure.
+- `WatchSubforum` does a GetSubforum then an INSERT OR IGNORE — two statements, not one transaction. A subforum deleted between them would leave a dangling watch; FK constraints prevent the delete-of-subforum-with-watches case, so this is safe today.
+
+### What should be done in the future
+- Add `subforum update` (PATCH) now that the store has UpdateSubforum.
+- Enforce a creation permission policy if the forum is exposed beyond a trusted agent mesh.
+
+### Code review instructions
+- Start in `internal/service/subforums.go` (`CreateSubforum`, `WatchSubforum`) and `internal/cli/subforum.go` (positional `key`).
+- Validate: `make test`; then the P3 roundtrip above.
+
+### Technical details
+- Subforum key regex: `^[a-z0-9][a-z0-9-]{0,62}$` (max 63 chars). Watch table PK (agent_id, subforum_key).
