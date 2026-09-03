@@ -93,3 +93,60 @@ The AGENTFORUM-001 design doc §10 fixed the endpoint list but not JSON shapes, 
 ### Technical details
 - publish-vault/web stats at analysis time: 162 src files; components 5,383 LOC / widgets 1,410 / styles 1,054 / store 281 / lib 952 / search 829.
 - Ticket path: `ttmp/2026/09/03/AGENTFORUM-002--agentforum-web-ui-and-protobuf-payloads-http-server-publish-vault-look-reuse-embedded-frontend`.
+
+## Step 2: W1 — proto schema, buf codegen, protojson round-trip tests
+
+This step implemented the schema-first payload contract. Two `.proto`
+files define every entity and request/response message; `buf generate`
+produces Go and TypeScript from them; golden fixtures pin the protojson
+wire shape in tests. No server or UI code yet — the contract comes first so
+every later phase codes against generated types only.
+
+### Prompt Context
+
+**User prompt (verbatim):** "implement, commit at appropriate intervals and keep a detailed diary as you work (using the diary format from the skill). Print out a brutalist work slip with the plan / different phases for the ticket. then before stsarting a phase, plrint a split about the phase, and print one when the phase is done."
+
+**Assistant interpretation:** Implement AGENTFORUM-002 phases W1–W8, committing per phase, keeping the diary current, printing plan + pre/post phase slips on the thermal printer.
+
+**Inferred user intent:** Execute the design doc end to end with the same per-phase discipline as AGENTFORUM-001 (slip before, implement, gate, commit, diary, slip after).
+
+### What I did
+- Wrote `proto/agentforum/v1/model.proto` (Agent, Subforum, Thread, Post, Event, SearchHit + EventType/Reason/Scope enums) and `service.proto` (one request/response pair per endpoint, `Error` envelope, `schema_version` on top-level messages).
+- Put `buf.yaml` in `proto/` (module root), `buf.gen.yaml` at repo root; `buf generate proto` emits `gen/proto/agentforum/v1/*.pb.go` and `web/src/pb/agentforum/v1/*_pb.ts` via remote plugins.
+- Wired `//go:generate buf generate proto` through a root `gen.go` (package agentforum) so plain `go generate ./...` regenerates both outputs.
+- Added `testdata/protojson/` golden fixtures (event, thread, create-thread request) and `internal/server/protojson_test.go`: camelCase assertions, int64-as-string (`"sequence":"42"`, `"nextCursor":"43"`), Struct-as-plain-object, byte-stable re-marshal, and int64 accepting both `"44"` and `45` on decode.
+
+### Why
+The design (§4) makes `.proto` the single source of truth for Go server and TS UI. W1 exists to pin the contract — including the two type traps — before any consumer exists.
+
+### What worked
+- `buf generate` with remote plugins worked first try (buf 1.55.1, network available); lint clean under `STANDARD` ruleset.
+- `go mod tidy` pulled `google.golang.org/protobuf v1.36.12` without conflicts.
+
+### What didn't work
+- `buf lint` at repo root failed with `import "agentforum/v1/model.proto": file does not exist`. Cause: the buf module root is the directory containing `buf.yaml`; with `buf.yaml` at the root, module paths carry the `proto/` prefix and the import (and generated output paths) would be `proto/agentforum/v1/...`. Fix: moved `buf.yaml` into `proto/` so module paths are `agentforum/v1/...`; generation runs as `buf generate proto` from the root, keeping `gen/proto/agentforum/v1` and `web/src/pb/agentforum/v1` clean (the exact pitfall the schema-exchange skill warns about).
+- First test draft used `msg.String()` on the `proto.Message` interface — compile error `type proto.Message has no field or method String` (new protobuf API interface only has `ProtoReflect`). Fixed with `%v` in `t.Errorf` (concrete generated types implement Stringer).
+- Left an unused `"fmt"` import after that fix; `go test` caught it, removed.
+
+### What I learned
+- `protojson.Unmarshal` accepts both JSON strings and numbers for int64 — encoded into a test (`TestUnmarshalAcceptsInt64AsStringAndNumber`) so the leniency is a pinned contract, not an accident.
+- protojson re-marshal of a decoded golden fixture is byte-stable (field order is deterministic), which makes golden-file comparison practical without canonicalization.
+
+### What was tricky to build
+- The module-root decision (buf.yaml location) interacts with three things at once: import paths inside `.proto` files, `paths=source_relative` Go output layout, and the TS import prefix. Moving the module root into `proto/` resolved all three consistently; the alternative (root module + `proto/`-prefixed imports) would have produced `gen/proto/proto/...`.
+
+### What warrants a second pair of eyes
+- The `DiscardUnknown: true` choice in the test's fixture decode (design R2 said "decide during W1"): the round-trip test opts in so fixtures stay valid when the schema grows. The server decode (W2) must make the same call explicitly.
+- `SearchHit.score` is `double` — fine for LIKE-based ranking, but confirm nothing downstream assumes ordering semantics.
+
+### What should be done in the future
+- W2: HTTP server on top of the contract.
+- The vitest mirror of the round-trip suite lands with the web scaffold (W3) when `web/package.json` exists; fixtures already shared via `testdata/protojson/`.
+
+### Code review instructions
+- Start: `proto/agentforum/v1/service.proto` (message inventory), then `internal/server/protojson_test.go`.
+- Validate: `buf lint proto && buf generate proto && git diff --exit-code gen web/src`; `GOWORK=off go test ./... -count=1`.
+
+### Technical details
+- Commit: 8d161dd.
+- Codegen command: `buf generate proto` (from repo root); remote plugins `buf.build/bufbuild/es` (target=ts, import_extension=none) and `buf.build/protocolbuffers/go` (paths=source_relative).
