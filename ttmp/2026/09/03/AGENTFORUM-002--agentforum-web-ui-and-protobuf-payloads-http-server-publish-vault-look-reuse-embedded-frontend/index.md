@@ -18,6 +18,8 @@ RelatedFiles:
       Note: The only models->proto conversion boundary (design §4.7)
     - Path: repo://internal/server/protojson_test.go
       Note: Pins the protojson wire shape (camelCase, int64-as-string, Struct-as-object)
+    - Path: repo://web/src/components/molecules/AgentHoverCard/AgentHoverCard.tsx
+      Note: Hover profile cards on author and actor names
     - Path: repo://web/src/components/pages/ForumShell/ForumShell.tsx
       Note: App shell composed from copied retro atoms
     - Path: repo://web/src/components/pages/InboxScreen/InboxScreen.tsx
@@ -30,6 +32,7 @@ LastUpdated: 2026-09-03T18:19:03.055181811-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 
 

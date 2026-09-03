@@ -400,3 +400,58 @@ Design §7.4: the inbox is the UI face of the cursor contract; the loop is a hoo
 ### Technical details
 - Commit: 6c2a0c7.
 - Live observation: cursor 2 → 5; events: watching×3 (thread + opening post + reply in "Caching investigation"), subforum×2 (thread + opening post in "Stale entries after deploy").
+
+## Step 7: W6 search + metadata filters; W6b profiles, avatars, hover cards
+
+W6 delivered the search surface; W6b (added mid-phase on user request)
+delivered user profiles with generated avatars and hover cards. Both were
+verified live in the browser with screenshots archived.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Create a couple more forums too, how deep can they be nested?" / "also display time and date for the posts so we can see them." / "Also make user profiles, where their info is shown (and show it on hover too). Add avatars (generated)"
+
+**Assistant interpretation:** Seed more subforums (and answer the nesting question — see below), show dates on posts, and build profile pages with generated avatars plus hover cards on author/actor names.
+
+**Inferred user intent:** The demo data should feel populated; timestamps must be visible everywhere content appears; agents need identity beyond a name string — a profile page, hover summary, and a visual avatar.
+
+### What I did
+- W6: `forumApi.search` (POST /v1/search), `MetadataFilterPanel` (adapted from publish-vault's AdvancedSearchPanel: dialog + draft + apply, forum filters — metadata term rows, subforum select, entity toggles, created-after), `SearchScreen` (flat results, dates on the right edge), menubar Search button, sidebar SearchBar → `/search?q=`.
+- Server fix: search hits denormalize author names (`AgentNames` batch) and thread stats (`ThreadStats` batch) — hits had shown raw `ag_…` ids and "0 posts".
+- W6b: `lib/avatar.ts` (deterministic identicons: 5×5 mirrored grid, per-cell hash `agentId:y:x`, FNV-1a, retro palette fg), `atoms/Avatar` (crispEdges SVG, 1px ink border), `molecules/AgentHoverCard` (pure-CSS group-hover card, 150 ms delay, lazy `getAgent`, click-through), `pages/ProfileScreen` (`/u/:name`), PostStream author avatars + hover, InboxScreen actor hover, menubar avatar button, `forumApi.getAgent`.
+- Seeded extra subforums (eng, ops, random) with threads + metadata for the demo.
+
+### Why
+Search was the last design-§7 screen without a face; profiles/avatars came from user feedback but land naturally in the same milestone (identity display is cheap once `getAgent` exists).
+
+### What worked
+- The pure-function avatar design: no storage, no upload, reproducible anywhere; alice and bob get distinct stable identicons.
+- Hover cards populate from the RTK cache: first hover fetches, subsequent hovers are instant; the card content verifiably matched seeded metadata.
+
+### What didn't work
+- The filter test filled `placeholder="key"` before any term row existed — the panel starts with zero rows; "+ term" must be clicked first. (Test-side mistake, but it exposes an affordance gap: consider one empty row by default.)
+- First attempt to click a hover card failed: the card hides when the pointer leaves the trigger (CSS group-hover), so programmatic click-through is fiddly; the menubar avatar button covers navigation.
+- `SearchScreen` rewrite (dates) was done as a full-file rewrite after an edit-tool whitespace mismatch — the file was small enough that this was safer.
+
+### What I learned
+- proto3 omits zero-valued fields from protojson output: `threadCount` is absent (not 0) for empty subforums — JSON consumers must treat missing as zero, not error.
+
+### What was tricky to build
+- Hover-card visibility: pure CSS `group-hover` shows the card only while the pointer is over the trigger; moving toward the card itself hides it. Acceptable for v1 (the card is a summary, not a menu); a hover-intent bridging element would fix it later.
+
+### What warrants a second pair of eyes
+- `avatarFor`'s per-cell hashing means avatar bits are independent — fine — but confirm the mirror (cols 3/4 = 1/0) never produces a degenerate all-ink avatar for common ids (worst case is cosmetic).
+- `AgentHoverCard` fetches on mount of every wrapper (posts, inbox lines): with many events this is N queries, though RTK dedupes by name and caches. Consider gating the query on hover via a mounted-state flag if the inbox gets long.
+
+### What should be done in the future
+- Hover-intent bridging so the card stays open while the pointer moves onto it.
+- Gate `useGetAgentQuery` on actual hover (skip option) if the inbox grows.
+- Subforum nesting is NOT supported (flat by design: no parent column, key regex forbids `/`); a future `parent_key` migration + recursive CTEs + UI tree would be needed — documented as an open question.
+
+### Code review instructions
+- Start: `web/src/lib/avatar.ts` + `atoms/Avatar` (the generator), `molecules/AgentHoverCard`, `pages/ProfileScreen`.
+- Validate: `cd web && pnpm check && pnpm test && pnpm build`; browser: hover an author in a thread, click the menubar avatar.
+
+### Technical details
+- Commits: 3b001be (W6), 703f710 (W6b). Screenshots: `screens/w6-filters-dialog.png`, `w6-search-metadata-filter.png`, `w6b-hover-card.png`, `w6b-profile.png`.
+- Live checks: metadata filter `ticket=PLAT-431` → thread hit with real post count + date; bob profile shows identicon + `model: other-agent`.

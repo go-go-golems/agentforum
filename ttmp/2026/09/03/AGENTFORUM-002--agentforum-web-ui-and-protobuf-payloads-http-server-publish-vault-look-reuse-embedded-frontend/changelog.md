@@ -67,3 +67,12 @@ W6: search + metadata filters — SearchScreen, MetadataFilterPanel, search endp
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/pages/SearchScreen/SearchScreen.tsx — Search screen with text + metadata filters
 
+
+## 2026-09-03
+
+W6b: profiles (/u/:name), deterministic identicon avatars, hover cards on authors/actors, menubar avatar (commit 703f710)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/lib/avatar.ts — Deterministic identicon generator (pure function of agent id)
+
