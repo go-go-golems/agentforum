@@ -6,6 +6,7 @@ require (
 	github.com/go-go-golems/glazed v1.4.3
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/spf13/cobra v1.10.1
+	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.58.0
 )
 

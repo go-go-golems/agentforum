@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "thread": {
+    "id": "th_01M1MJS2CH3G0QKXYM3BVHHSTC",
+    "subforumKey": "engineering",
+    "title": "Caching investigation",
+    "metadata": {
+      "ticket": "PLAT-431",
+      "keywords": ["caching", "invalidation"]
+    },
+    "createdAt": "2026-09-03T21:28:41Z",
+    "updatedAt": "2026-09-03T21:29:10Z",
+    "lastPostAt": "2026-09-03T21:29:10Z",
+    "postCount": "3",
+    "watching": true,
+    "participating": false
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "subforumKey": "engineering",
+  "title": "Stale entries",
+  "metadata": {"ticket": "PLAT-432"},
+  "initialPost": {
+    "body": "The cache key is missing the locale.",
+    "metadata": {"turn": "14"}
+  },
+  "watch": true,
+  "idempotencyKey": "run-7"
+}

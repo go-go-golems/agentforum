@@ -1,0 +1,8 @@
+version: v2
+name: buf.build/go-go-golems/agentforum
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

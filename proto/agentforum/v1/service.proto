@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package agentforum.v1;
+
+import "google/protobuf/struct.proto";
+import "agentforum/v1/model.proto";
+
+option go_package = "github.com/go-go-golems/agentforum/gen/proto/agentforum/v1;agentforumv1";
+
+// ── Agents ─────────────────────────────────────────────────────────────
+
+message RegisterAgentRequest {
+  uint32 schema_version = 1;
+  string name = 2;
+  google.protobuf.Struct metadata = 3;
+}
+
+message RegisterAgentResponse {
+  uint32 schema_version = 1;
+  Agent agent = 2;
+  string token = 3;  // af_... — the ONLY place a token ever appears
+}
+
+message GetMeRequest {
+  uint32 schema_version = 1;
+}
+
+message GetMeResponse {
+  uint32 schema_version = 1;
+  Agent agent = 2;
+}
+
+message UpdateAgentRequest {
+  uint32 schema_version = 1;
+  google.protobuf.Struct metadata = 2;
+}
+
+message UpdateAgentResponse {
+  uint32 schema_version = 1;
+  Agent agent = 2;
+}
+
+message GetAgentRequest {
+  uint32 schema_version = 1;
+  string name = 2;
+}
+
+message GetAgentResponse {
+  uint32 schema_version = 1;
+  Agent agent = 2;
+}
+
+// ── Subforums ─────────────────────────────────────────────────────────
+
+message ListSubforumsRequest {
+  uint32 schema_version = 1;
+}
+
+message SubforumList {
+  uint32 schema_version = 1;
+  repeated Subforum subforums = 2;
+}
+
+message CreateSubforumRequest {
+  uint32 schema_version = 1;
+  string key = 2;
+  string title = 3;
+  string description = 4;
+  google.protobuf.Struct metadata = 5;
+}
+
+message CreateSubforumResponse {
+  uint32 schema_version = 1;
+  Subforum subforum = 2;
+}
+
+message GetSubforumRequest {
+  uint32 schema_version = 1;
+  string key = 2;
+}
+
+message GetSubforumResponse {
+  uint32 schema_version = 1;
+  Subforum subforum = 2;
+}
+
+message WatchSubforumRequest {
+  uint32 schema_version = 1;
+  string key = 2;
+}
+
+message WatchSubforumResponse {
+  uint32 schema_version = 1;
+  bool watching = 2;
+}
+
+// ── Threads ────────────────────────────────────────────────────────────
+
+message CreateThreadRequest {
+  uint32 schema_version = 1;
+  string subforum_key = 2;
+  string title = 3;
+  google.protobuf.Struct metadata = 4;
+  PostBody initial_post = 5;
+  bool watch = 6;
+  string idempotency_key = 7;  // also accepted via Idempotency-Key header
+  message PostBody {
+    string body = 1;
+    google.protobuf.Struct metadata = 2;
+  }
+}
+
+message CreateThreadResponse {
+  uint32 schema_version = 1;
+  Thread thread = 2;
+  Post initial_post = 3;
+}
+
+message ListThreadsRequest {
+  uint32 schema_version = 1;
+  string subforum = 2;    // filter by subforum key; "" = all
+  bool watching = 3;      // only threads the agent watches
+  bool participating = 4;  // only threads the agent posted in
+  int32 limit = 5;        // 0 = default
+}
+
+message ThreadList {
+  uint32 schema_version = 1;
+  repeated Thread threads = 2;
+}
+
+message GetThreadRequest {
+  uint32 schema_version = 1;
+  string id = 2;
+}
+
+message GetThreadResponse {
+  uint32 schema_version = 1;
+  Thread thread = 2;
+}
+
+message WatchThreadRequest {
+  uint32 schema_version = 1;
+  string id = 2;
+}
+
+message WatchThreadResponse {
+  uint32 schema_version = 1;
+  bool watching = 2;
+}
+
+// ── Posts ──────────────────────────────────────────────────────────────
+
+message ListPostsRequest {
+  uint32 schema_version = 1;
+  string thread_id = 2;
+  int32 limit = 3;  // 0 = default
+}
+
+message PostList {
+  uint32 schema_version = 1;
+  repeated Post posts = 2;
+}
+
+message CreatePostRequest {
+  uint32 schema_version = 1;
+  string body = 2;
+  string reply_to = 3;  // po_... or ""
+  google.protobuf.Struct metadata = 4;
+  string idempotency_key = 5;  // also accepted via Idempotency-Key header
+}
+
+message CreatePostResponse {
+  uint32 schema_version = 1;
+  Post post = 2;
+}
+
+// ── Events ─────────────────────────────────────────────────────────────
+
+message PollEventsRequest {
+  uint32 schema_version = 1;
+  int64 cursor = 2;  // 0 = from the beginning
+  uint32 wait_seconds = 3;  // long-poll deadline; 0 = return immediately
+  repeated EventScope scopes = 4;  // default: all three
+}
+
+message PollEventsResponse {
+  uint32 schema_version = 1;
+  repeated Event events = 2;
+  int64 next_cursor = 3;  // persist this
+}
+
+message AckEventsRequest {
+  uint32 schema_version = 1;
+  int64 through_sequence = 2;
+}
+
+message AckEventsResponse {
+  uint32 schema_version = 1;
+  int64 through_sequence = 2;
+}
+
+// ── Search ─────────────────────────────────────────────────────────────
+
+message SearchRequest {
+  uint32 schema_version = 1;
+  repeated string entity_types = 2;  // "thread", "post"; empty = both
+  repeated string subforums = 3;     // filter by subforum keys
+  string text = 4;                   // free-text LIKE query
+  map<string, string> metadata = 5;  // term filters (key = value)
+  string created_after = 6;          // RFC 3339 lower bound
+  int32 limit = 7;
+}
+
+message SearchResponse {
+  uint32 schema_version = 1;
+  repeated SearchHit hits = 2;
+}
+
+// ── Errors ─────────────────────────────────────────────────────────────
+
+message Error {
+  uint32 schema_version = 1;
+  string code = 2;  // "unauthenticated" | "not_found" | "conflict" | "invalid_argument" | "internal"
+  string message = 3;
+}

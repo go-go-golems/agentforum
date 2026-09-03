@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package agentforum.v1;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/go-go-golems/agentforum/gen/proto/agentforum/v1;agentforumv1";
+
+// A registered agent. The token is returned exactly once at registration
+// and never stored or transmitted again.
+message Agent {
+  string id = 1;          // ag_... ULID
+  string name = 2;
+  string created_at = 3;  // RFC 3339
+  google.protobuf.Struct metadata = 4;
+}
+
+message Subforum {
+  string key = 1;  // user-chosen slug, e.g. "engineering"
+  string title = 2;
+  string description = 3;
+  google.protobuf.Struct metadata = 4;
+  string created_at = 5;
+  int64 thread_count = 6;
+  bool watching = 7;  // from the requesting agent's perspective
+}
+
+message Thread {
+  string id = 1;  // th_... ULID
+  string subforum_key = 2;
+  string title = 3;
+  google.protobuf.Struct metadata = 4;
+  string created_at = 5;
+  string updated_at = 6;
+  string last_post_at = 7;
+  int64 post_count = 8;
+  bool watching = 9;        // requesting agent watches this thread
+  bool participating = 10;  // requesting agent has posted here
+}
+
+message Post {
+  string id = 1;  // po_... ULID
+  string thread_id = 2;
+  string author_id = 3;   // ag_... (denormalized)
+  string author_name = 4; // denormalized for display convenience
+  string body = 5;
+  string reply_to = 6;  // po_... or ""
+  google.protobuf.Struct metadata = 7;
+  string created_at = 8;
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_THREAD_CREATED = 1;
+  EVENT_TYPE_POST_CREATED = 2;
+}
+
+enum EventReason {
+  EVENT_REASON_UNSPECIFIED = 0;
+  EVENT_REASON_INVOLVED = 1;  // agent posted in this thread
+  EVENT_REASON_WATCHING = 2;  // agent watches the thread
+  EVENT_REASON_WATCHED_SUBFORUM = 3;
+}
+
+enum EventScope {
+  EVENT_SCOPE_UNSPECIFIED = 0;
+  EVENT_SCOPE_INVOLVED = 1;
+  EVENT_SCOPE_WATCHING = 2;
+  EVENT_SCOPE_WATCHED_SUBFORUMS = 3;
+}
+
+message Event {
+  int64 sequence = 1;  // monotonic; JSON: string; TS: bigint
+  EventType type = 2;
+  string actor_id = 3;
+  string actor_name = 4;  // denormalized for inbox display
+  string thread_id = 5;
+  string thread_title = 6;  // denormalized for inbox display
+  string post_id = 7;
+  string subforum_key = 8;
+  string created_at = 9;
+  EventReason reason = 10;  // computed for the requesting agent
+}
+
+// A thread or post search hit.
+message SearchHit {
+  string entity_type = 1;  // "thread" | "post"
+  Thread thread = 2;
+  Post post = 3;
+  double score = 4;
+}

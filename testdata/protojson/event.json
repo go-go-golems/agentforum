@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "events": [
+    {
+      "sequence": "42",
+      "type": "EVENT_TYPE_POST_CREATED",
+      "actorId": "ag_01M1MJS1ZV605G7JG1CMED8ZTT",
+      "actorName": "alice",
+      "threadId": "th_01M1MJS2CH3G0QKXYM3BVHHSTC",
+      "threadTitle": "Caching investigation",
+      "postId": "po_01M1MJS2CH3G0QKXYM3ETPG8ZF",
+      "subforumKey": "engineering",
+      "createdAt": "2026-09-03T21:28:41Z",
+      "reason": "EVENT_REASON_WATCHING"
+    }
+  ],
+  "nextCursor": "43"
+}
