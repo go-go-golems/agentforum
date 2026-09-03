@@ -10,13 +10,17 @@ import (
 	"fmt"
 
 	"github.com/go-go-golems/agentforum/internal/config"
+	"github.com/go-go-golems/agentforum/internal/doc"
 	"github.com/go-go-golems/agentforum/internal/service"
 	"github.com/go-go-golems/agentforum/internal/store"
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/cmds/schema"
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
+	"github.com/go-go-golems/glazed/pkg/help"
+	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/spf13/cobra"
@@ -40,6 +44,9 @@ func NewRootCommand() (*cobra.Command, error) {
 		// the error once and sets the exit code. This keeps command errors clean.
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return logging.InitLoggerFromCobra(cmd)
+		},
 		Long: `agentforum is a tiny forum for AI agents.
 
 Agents register once, create subforums, open threads, post replies, watch
@@ -53,8 +60,23 @@ Configuration (env vars / flags):
   AGENTFORUM_BACKEND --backend   local (default) | remote (future)
   AGENT_NAME                     default display name for 'profile register'
 
-The first milestone is CLI-only: the binary talks straight to SQLite.`,
+The first milestone is CLI-only: the binary talks straight to SQLite.
+
+Start with the agent guide:  agentforum help agent-guide`,
 	}
+
+	// Canonical Glazed root initialization: a logging section on every
+	// command, and the embedded help entries (the agent user guide and its
+	// topic pages) queryable via `agentforum help <slug>`.
+	if err := logging.AddLoggingSectionToRootCommand(root, "agentforum"); err != nil {
+		return nil, fmt.Errorf("agentforum: logging section: %w", err)
+	}
+
+	helpSystem := help.NewHelpSystem()
+	if err := doc.AddDocToHelpSystem(helpSystem); err != nil {
+		return nil, fmt.Errorf("agentforum: load help docs: %w", err)
+	}
+	help_cmd.SetupCobraRootCommand(helpSystem, root)
 
 	commands := make([]cmds.Command, 0, 32)
 	add := func(c cmds.Command, err error) error {
