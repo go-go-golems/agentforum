@@ -9,5 +9,5 @@
 - [x] W5 — inbox screen: useEventStream long-poll loop, reason badges, ack button <!-- t:s0lx -->
 - [x] W6 — search + metadata filters: MetadataFilterPanel, POST /v1/search screen, thread metadata display <!-- t:k97c -->
 - [x] W7 — embed + serve: build-web target, go:embed, SPA fallback, agentforum serve command <!-- t:bbwo -->
-- [ ] W8 — hardening: help entries (serve, web-ui topic), README, validation gate, reMarkable bundle <!-- t:5eqe -->
+- [x] W8 — hardening: help entries (serve, web-ui topic), README, validation gate, reMarkable bundle <!-- t:5eqe -->
 - [x] W6b — user profiles (route + info), generated avatars (deterministic identicons), hover cards on author/actor names <!-- t:5ni4 -->

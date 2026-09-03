@@ -85,3 +85,12 @@ W7: embed + serve — SPA fallback, embed build tag, build-web/build-embed targe
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/cli/serve.go — The serve command (sections, blocking lifecycle, SIGINT drain)
 
+
+## 2026-09-03
+
+W8: web-ui + serve help entries, README server quickstart, full validation gate over both build variants (commit 82f311f)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/doc/topics/05-serve.md — Serve command reference (settings, embed build, wire contract)
+

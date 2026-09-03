@@ -512,3 +512,53 @@ Design §5.7/D7: single-binary distribution; dev loop stays `pnpm dev` with the 
 
 ### Technical details
 - Commit: e3d4f60. Binary: 58 MB (MathJax + highlight.js chunks). Screenshot: `screens/w7-single-binary.png`.
+
+## Step 9: W8 — hardening: help entries, README, full gate
+
+This step closed the milestone: the `serve` and `web-ui` help entries,
+the README rewritten for the server era, the full validation gate over
+both build variants, and the reMarkable bundle.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2 — phase directive; W8 is its final phase)
+
+**Assistant interpretation:** Finish W8: documentation, validation, delivery.
+
+**Inferred user intent:** The milestone ships complete: binary, docs, and ticket artifacts.
+
+### What I did
+- `internal/doc/topics/04-web-ui.md` (GeneralTopic, top-level): running the server, screen inventory table, the API underneath (curl example), troubleshooting table.
+- `internal/doc/topics/05-serve.md`: usage, settings table (listen/db + env), the embed build, the wire contract (envelope + status mapping), examples, troubleshooting. Both render via `agentforum help serve` / `help web-ui`; the doc package's `//go:embed *` picks them up with no registration.
+- README: serve quickstart (`make build-embed`), layout updated (proto/, gen/, server/, web/), `AGENTFORUM_SERVE_LISTEN` row, validation section covers the web gate, Status rewritten for milestone 2.
+- Full gate: gofmt, `go test ./...`, vet, build without and with the `embed` tag, `tsc`, vitest, vite build, `buf generate` drift check (clean), `git diff --check`, and the three help entries render.
+
+### Why
+The design's W8 definition of done: the milestone is not shippable if `serve` is undiscoverable from the binary or the README describes milestone 1.
+
+### What worked
+- The help-system investment from AGENTFORUM-001 P8 paid off directly: two new markdown files with frontmatter were picked up by the existing embed — zero Go changes.
+- The drift check (`buf generate && git diff --exit-code`) confirms the committed codegen matches the schema — cheap CI insurance.
+
+### What didn't work
+- Nothing in this step; the gate was green on the first full run.
+
+### What I learned
+- The W7 register-flow anomaly stays unexplained but guarded (`setToken` prefix check). If it recurs, the next probe is a unit test decoding `RegisterAgentResponse` from a wire body without a `token` field.
+
+### What was tricky to build
+- N/A (documentation + gate).
+
+### What warrants a second pair of eyes
+- The README's claim "single 58 MB binary" will drift as the UI grows — consider deriving it from `du` in CI or dropping the number.
+
+### What should be done in the future
+- CI pipeline: `make build-embed` + the gate + the codegen drift check.
+- The `remote` CLI backend and SSE stream remain the documented next phases.
+
+### Code review instructions
+- Start: `internal/doc/topics/05-serve.md`, README's "Serving the web UI" section.
+- Validate: `./agentforum help serve && ./agentforum help web-ui`; the gate commands in README "Validation".
+
+### Technical details
+- Commit: 82f311f.
