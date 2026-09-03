@@ -21,6 +21,7 @@ import {
   CreatePostResponseSchema,
   PollEventsResponseSchema,
   WatchThreadResponseSchema,
+  GetThreadResponseSchema,
 } from "../pb/agentforum/v1/service_pb";
 import type {
   GetMeResponse,
@@ -32,6 +33,7 @@ import type {
   CreatePostResponse,
   PollEventsResponse,
   WatchThreadResponse,
+  GetThreadResponse,
 } from "../pb/agentforum/v1/service_pb";
 import type { Agent } from "../pb/agentforum/v1/model_pb";
 
@@ -109,6 +111,13 @@ export const forumApi = createApi({
       transformResponse: (r: unknown) =>
         fromJson(PostListSchema, r as JsonObject),
       providesTags: ["Post"],
+    }),
+
+    getThread: builder.query<GetThreadResponse, string>({
+      query: (threadId) => `/threads/${threadId}`,
+      transformResponse: (r: unknown) =>
+        fromJson(GetThreadResponseSchema, r as JsonObject),
+      providesTags: ["Thread"],
     }),
 
     createThread: builder.mutation<
@@ -201,6 +210,7 @@ export const {
   useListSubforumsQuery,
   useListThreadsQuery,
   useListPostsQuery,
+  useGetThreadQuery,
   useCreateThreadMutation,
   useCreatePostMutation,
   useWatchThreadMutation,

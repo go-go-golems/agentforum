@@ -13,6 +13,7 @@ import { ForumShell } from "./components/pages/ForumShell/ForumShell";
 import { RegisterScreen } from "./components/pages/RegisterScreen/RegisterScreen";
 import { SubforumListScreen } from "./components/pages/SubforumListScreen/SubforumListScreen";
 import { ThreadListScreen } from "./components/pages/ThreadListScreen/ThreadListScreen";
+import { ThreadDetailScreen } from "./components/pages/ThreadDetailScreen/ThreadDetailScreen";
 import { Icon } from "./components/atoms/Icon/Icon";
 
 export function App() {
@@ -42,6 +43,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<SubforumListScreen />} />
         <Route path="/s/:key" element={<ThreadListScreen />} />
+        <Route path="/t/:id" element={<ThreadDetailScreen />} />
         <Route
           path="/inbox"
           element={

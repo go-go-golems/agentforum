@@ -1,71 +1,85 @@
 /**
- * PAGE: ThreadListScreen — threads of one subforum, rendered through the
- * copied DataTable molecule (the widget-IR construction arrives in W4).
- * bigint fields (postCount) are stringified here at the widget boundary,
- * per the schema-exchange rule.
+ * PAGE: ThreadListScreen — threads of one subforum, built as widget IR in
+ * useMemo and rendered through the WidgetRenderer + defaultRegistry
+ * (design §6.3: the IR is the presentation contract; client-side IR for
+ * now, server-emitted later).
+ *
+ * bigint fields are stringified at the row-construction boundary (the IR is
+ * plain JSON data); the RTK cache keeps proto messages untouched.
  */
 import React, { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useListThreadsQuery } from "../../../store/forumApi";
-import { DataTable } from "../../molecules/DataTable/DataTable";
+import { WidgetRenderer } from "../../../widgets/WidgetRenderer";
+import { defaultWidgetRegistry } from "../../../widgets/defaultRegistry";
+import type { ComponentNode } from "../../../widgets/ir";
 import { BreadcrumbBar } from "../../molecules/BreadcrumbBar/BreadcrumbBar";
-import type { DataTableColumn } from "../../molecules/DataTable/DataTable";
-import type { Thread } from "../../../pb/agentforum/v1/model_pb";
-import { Tag } from "../../atoms/Tag/Tag";
+import { useNavigate } from "react-router-dom";
 
 export const ThreadListScreen: React.FC = () => {
   const { key = "" } = useParams();
-  const { data, isLoading } = useListThreadsQuery({ subforum: key });
   const navigate = useNavigate();
+  const { data, isLoading } = useListThreadsQuery({ subforum: key });
 
   const threads = useMemo(() => data?.threads ?? [], [data]);
 
-  const columns: DataTableColumn<Thread>[] = useMemo(
-    () => [
-      {
-        id: "title",
-        header: "Thread",
-        cell: (t) => (
-          <span className="font-bold text-xs">{t.title}</span>
-        ),
+  // IR construction: rows are plain JSON (stringified counts); columns are
+  // defunctionalized cell specs; row selection is a navigate action with
+  // ${row.id} interpolation.
+  const tableNode = useMemo<ComponentNode | null>(() => {
+    if (isLoading) return null;
+    return {
+      kind: "component",
+      type: "DataTable",
+      props: {
+        columns: [
+          {
+            id: "title",
+            header: "Thread",
+            cell: { kind: "field", field: "title" },
+          },
+          {
+            id: "posts",
+            header: "Posts",
+            align: "end",
+            cell: { kind: "field", field: "postCount" },
+          },
+          {
+            id: "flags",
+            header: "",
+            align: "end",
+            cell: { kind: "status", field: "perspective" },
+          },
+          {
+            id: "updated",
+            header: "Updated",
+            align: "end",
+            cell: { kind: "caption", field: "updatedAt", tone: "muted" },
+          },
+        ],
+        rows: threads.map((t) => ({
+          id: t.id,
+          title: t.title,
+          postCount: t.postCount.toString(),
+          perspective:
+            t.participating && t.watching
+              ? "done"
+              : t.participating
+                ? "involved"
+                : t.watching
+                  ? "published"
+                  : "",
+          updatedAt: (t.updatedAt || "").slice(0, 16).replace("T", " "),
+        })),
+        getRowKey: "id",
+        emptyMessage: "No threads in this subforum yet.",
+        onRowSelect: { kind: "navigate", to: "/t/${row.id}" },
       },
-      {
-        id: "posts",
-        header: "Posts",
-        align: "end",
-        cell: (t) => (
-          <span className="tabular-nums text-[11px]">
-            {t.postCount.toString()}
-          </span>
-        ),
-      },
-      {
-        id: "flags",
-        header: "",
-        align: "end",
-        cell: (t) => (
-          <span className="flex gap-1 justify-end">
-            {t.participating && <Tag label="involved" />}
-            {t.watching && <Tag label="watching" />}
-          </span>
-        ),
-      },
-      {
-        id: "updated",
-        header: "Updated",
-        align: "end",
-        cell: (t) => (
-          <span className="text-[11px] text-[var(--color-muted-foreground)] tabular-nums">
-            {(t.updatedAt || "").slice(0, 16).replace("T", " ")}
-          </span>
-        ),
-      },
-    ],
-    []
-  );
+    };
+  }, [threads, isLoading]);
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl">
+    <div className="p-3 md:p-4 max-w-4xl">
       <BreadcrumbBar
         segments={[
           { label: "agentforum", slug: "/" },
@@ -73,24 +87,14 @@ export const ThreadListScreen: React.FC = () => {
         ]}
         onNavigate={(slug) => slug && navigate(slug)}
       />
-      <div className="mt-3">
+      <div className="mt-2">
         {isLoading ? (
           <div className="text-xs text-[var(--color-muted-foreground)] p-2">
             Loading threads…
           </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            rows={threads}
-            getRowKey={(t) => t.id}
-            onRowSelect={(t) => navigate(`/t/${t.id}`)}
-            emptyMessage={
-              <span className="text-xs text-[var(--color-muted-foreground)] italic">
-                No threads in this subforum yet.
-              </span>
-            }
-          />
-        )}
+        ) : tableNode ? (
+          <WidgetRenderer node={tableNode} registry={defaultWidgetRegistry} />
+        ) : null}
       </div>
     </div>
   );

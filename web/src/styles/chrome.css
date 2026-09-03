@@ -7,15 +7,14 @@
   .retro-window {
     border: 1px solid var(--color-ink);
     background: var(--color-paper);
-    box-shadow: 2px 2px 0 var(--color-ink);
   }
 
   .retro-window-title {
     background: var(--color-ink);
     color: var(--color-paper);
-    padding: 3px 8px;
+    padding: 2px 6px;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 11px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     display: flex;
@@ -41,7 +40,6 @@
   /* ── Inset / Sunken Panel ── */
   .retro-inset {
     border: 1px solid var(--color-ink);
-    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
     background: var(--color-paper);
   }
 
@@ -49,14 +47,11 @@
   .retro-btn {
     border: 1px solid var(--color-ink);
     background: var(--color-panel);
-    box-shadow: 1px 1px 0 var(--color-ink);
-    padding: 3px 10px;
-    font-size: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.03em;
-    transition:
-      box-shadow 80ms,
-      transform 80ms;
+    transition: background 80ms;
     user-select: none;
     display: inline-flex;
     align-items: center;
@@ -66,7 +61,6 @@
     background: var(--color-chrome);
   }
   .retro-btn:active {
-    box-shadow: none;
     transform: translate(1px, 1px);
   }
   /* Anchor tags styled as retro-btn should not use global link hover */
@@ -110,7 +104,6 @@
   .retro-btn-primary {
     background: var(--color-ink);
     color: var(--color-paper);
-    box-shadow: 1px 1px 0 #555;
   }
   .retro-btn-primary:hover {
     background: #333;
@@ -133,20 +126,20 @@
     background: var(--color-ink);
     color: var(--color-paper);
     border-bottom: 1px solid var(--color-ink);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     display: flex;
     align-items: center;
-    padding: 0 8px;
-    height: 28px;
+    padding: 0 6px;
+    height: 24px;
     gap: 0;
     user-select: none;
   }
 
   .retro-menubar-item {
-    padding: 0 10px;
+    padding: 0 8px;
     height: 100%;
     display: flex;
     align-items: center;
@@ -169,8 +162,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 8px;
-    font-size: 12px;
+    padding: 1px 6px;
+    font-size: 11px;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
@@ -211,12 +204,11 @@
   .retro-search {
     border: 1px solid var(--color-ink);
     background: var(--color-paper);
-    padding: 4px 8px;
-    font-size: 12px;
+    padding: 3px 6px;
+    font-size: 11px;
     font-family: inherit;
     width: 100%;
     outline: none;
-    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.15);
   }
   .retro-search:focus {
     outline: 2px solid var(--color-active);

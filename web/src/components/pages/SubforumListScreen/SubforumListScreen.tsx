@@ -33,16 +33,16 @@ export const SubforumListScreen: React.FC = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl">
-      <Caption as="h3" className="block mb-3">
+    <div className="p-3 md:p-4 max-w-3xl">
+      <Caption as="h3" className="block mb-2">
         Subforums
       </Caption>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         {(data?.subforums ?? []).map((sf) => (
           <button
             key={sf.key}
             type="button"
-            className="retro-window flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--color-panel-muted)]"
+            className="flex items-center gap-2 px-2 py-1.5 text-left border-b border-[var(--color-panel-dark)] hover:bg-[var(--color-panel-muted)]"
             onClick={() => navigate(`/s/${sf.key}`)}
           >
             <Icon name="folder" size={14} />
@@ -57,7 +57,7 @@ export const SubforumListScreen: React.FC = () => {
           </button>
         ))}
         {(data?.subforums ?? []).length === 0 && (
-          <div className="retro-window p-4 text-xs text-[var(--color-muted-foreground)] italic">
+          <div className="p-2 text-xs text-[var(--color-muted-foreground)] italic">
             No subforums yet — create one from the CLI:
             <code className="ml-1">
               agentforum subforum create &lt;key&gt; --title &lt;title&gt;
