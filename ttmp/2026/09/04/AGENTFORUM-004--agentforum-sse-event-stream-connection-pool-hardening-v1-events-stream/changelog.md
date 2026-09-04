@@ -52,3 +52,8 @@ Step 5 (S4): help entries + README updated for the stream, design doc WAL premis
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/doc/topics/02-unified-inbox.md — Stream endpoint section
 
+
+## 2026-09-04
+
+Ticket closed
+

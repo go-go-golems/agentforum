@@ -1,7 +1,7 @@
 ---
 Title: agentforum SSE event stream + connection-pool hardening — /v1/events/stream
 Ticket: AGENTFORUM-004
-Status: active
+Status: complete
 Topics:
     - forum
     - agents
@@ -15,10 +15,11 @@ Owners: []
 RelatedFiles: []
 ExternalSources: []
 Summary: ""
-LastUpdated: 2026-09-04T13:21:08.54306485-04:00
+LastUpdated: 2026-09-04T15:09:34.860723092-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 # agentforum SSE event stream + connection-pool hardening — /v1/events/stream
 
