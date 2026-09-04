@@ -40,10 +40,15 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: open: %w", err)
 	}
-	// A single connection serializes writes cleanly under WAL and lets
-	// migrations set PRAGMAs that persist on the connection. Long-poll reads
-	// happen on their own queries and are fine under WAL.
-	db.SetMaxOpenConns(1)
+	// WAL mode lets readers run concurrently with the single writer; the pool
+	// exists so long-poll reads (and the batches they trigger) stop queueing
+	// behind each other while writes arrive. PRAGMAs live in the DSN, so every
+	// pooled connection gets busy_timeout and foreign_keys on open
+	// (journal_mode=WAL persists in the database file). Verified under 16
+	// concurrent long-pollers + writes: see TestPollEventsConcurrentLongPollers
+	// (AGENTFORUM-004 S1, risk R4).
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(8)
 
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()

@@ -91,3 +91,22 @@ func TestOpenCreatesParentDir(t *testing.T) {
 		t.Fatalf("ping after create: %v", err)
 	}
 }
+
+// TestOpenPoolSettings pins the R4 fix (AGENTFORUM-004 S1): the pool must
+// stay raised so concurrent long-poll reads and arriving writes do not
+// serialize on one connection. WAL readers do not block the writer; the
+// DSN applies busy_timeout/foreign_keys to every pooled connection.
+func TestOpenPoolSettings(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "agentforum.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	stats := s.DB().Stats()
+	if stats.MaxOpenConnections != 8 {
+		t.Errorf("MaxOpenConnections = %d, want 8", stats.MaxOpenConnections)
+	}
+}

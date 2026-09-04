@@ -2,7 +2,7 @@
 
 ## TODO
 
-- [ ] S1: pool hardening — SetMaxOpenConns(8)+idle, N-poller concurrency test with before/after timings <!-- t:t8er -->
+- [x] S1: pool hardening — SetMaxOpenConns(8)+idle, N-poller concurrency test with before/after timings <!-- t:t8er -->
 - [ ] S2: server endpoint — GET /v1/events/stream (Flusher, heartbeat, shared denormalization), streaming test suite <!-- t:r2yb -->
 - [ ] S3: client switch — fetch ReadableStream reader in useEventStream, reconnect/backoff, browser verification <!-- t:1ka8 -->
 - [ ] S4: docs — help entries (unified-inbox, web-ui), README, full gate, reMarkable bundle <!-- t:xtul -->

@@ -326,8 +326,8 @@ identical to the current poll loop's error handling.
 ### 7.1 The change
 
 ```go
-// internal/store/store.go
-db.SetMaxOpenConns(8)  // was 1
+// internal/store/store.go (implemented in S1)
+db.SetMaxOpenConns(8)
 db.SetMaxIdleConns(8)
 ```
 
