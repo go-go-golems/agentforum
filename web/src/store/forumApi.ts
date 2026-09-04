@@ -49,11 +49,15 @@ export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? "";
 }
 
+const TOKEN_RE = /^af_[A-Za-z0-9_-]+$/;
+
 export function setToken(token: string) {
-  // guard against an undefined/empty token silently storing the string
-  // "undefined" — a malformed registration response must not poison the
-  // credential slot (observed once during W7 verification; see diary)
-  if (typeof token !== "string" || !token.startsWith("af_")) {
+  // guard against an undefined/empty/prefix-only token silently poisoning the
+  // credential slot — a malformed registration response must not store
+  // "undefined" or a bare "af_" (observed once during W7 verification; probe
+  // and pinned by web/src/store/forumApi.test.ts, AGENTFORUM-005 A3). Real
+  // tokens are af_<43 base64url chars> (internal/id NewToken).
+  if (typeof token !== "string" || !TOKEN_RE.test(token)) {
     return;
   }
   localStorage.setItem(TOKEN_KEY, token);

@@ -61,11 +61,17 @@ shape as A1: display-name/bio/metadata form + mutation + invalidate
 One unreproducible register flow stored an invalid token → `getMe` 401 →
 `clearToken`. Guarded by the `af_` prefix check in `setToken`, but the
 root cause is unproven. The suggested probe (AGENTFORUM-002 diary):
-a unit test decoding `RegisterAgentResponse` without a token field, to
-prove the client cannot manufacture a non-`af_` token from a well-formed
-response. If that passes clean, the anomaly was almost certainly manual
-state tampering (localStorage edit) — then close as unexplained-but-
-guarded, with the guard as the fix.
+DONE (P1): the probe (`web/src/store/forumApi.test.ts`) pins the full
+case analysis — a response without a token decodes to the proto3 default
+`""` (never a fabricated string), a non-string token fails `fromJson` so
+the mutation rejects before `setToken` runs, and the guard rejects both
+the W7 symptom string `"undefined"` and valid tokens round-trip. One
+real looseness found and fixed: the old `startsWith("af_")` guard
+accepted the bare prefix `"af_"`; it now requires
+`af_<base64url payload>` (real tokens are `af_` + 43 base64url chars).
+Conclusion: the client cannot manufacture a non-`af_` token from any
+decodable response, so the W7 anomaly most plausibly predates the guard
+or was manual state; the (tightened) guard is the correct fix.
 
 ### A4. CI workflows (the repo has none)
 
