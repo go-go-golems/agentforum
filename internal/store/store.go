@@ -65,11 +65,20 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 
 // buildDSN assembles the SQLite connection string with the pragmas the design
 // doc calls for: WAL journaling, a 5s busy timeout, and foreign keys on.
+//
+// Each pragma is a separate _pragma parameter. url.Values.Set REPLACES the
+// previous value for a key, so three Set calls on "_pragma" would leave only
+// the last one (foreign_keys) in the DSN — which is exactly what shipped
+// from AGENTFORUM-001 until AGENTFORUM-004 S2: the database silently ran in
+// rollback-journal mode with no busy timeout, and concurrent readers made
+// writers fail with SQLITE_BUSY (observed as unmapped 500s on POST while a
+// long-poll or stream was open, including the AGENTFORUM-005 CI flake).
+// Pinned by TestOpenPragmasApply.
 func buildDSN(dbPath string) string {
 	q := url.Values{}
-	q.Set("_pragma", "journal_mode=WAL")
-	q.Set("_pragma", "busy_timeout=5000")
-	q.Set("_pragma", "foreign_keys=on")
+	q.Add("_pragma", "journal_mode(WAL)")
+	q.Add("_pragma", "busy_timeout(5000)")
+	q.Add("_pragma", "foreign_keys(1)")
 	return "file:" + dbPath + "?" + q.Encode()
 }
 

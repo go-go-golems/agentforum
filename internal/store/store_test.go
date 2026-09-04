@@ -110,3 +110,36 @@ func TestOpenPoolSettings(t *testing.T) {
 		t.Errorf("MaxOpenConnections = %d, want 8", stats.MaxOpenConnections)
 	}
 }
+
+// TestOpenPragmasApply pins the DSN pragma bug (AGENTFORUM-004 S2): three
+// url.Values.Set calls on the same "_pragma" key left only the last one,
+// so the database ran in rollback-journal mode with no busy timeout from
+// AGENTFORUM-001 onward — concurrent readers made writers fail with
+// SQLITE_BUSY, surfacing as unmapped 500s while long-polls/streams were
+// open (also the AGENTFORUM-005 CI flake's root cause).
+func TestOpenPragmasApply(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "pragmas.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	for _, probe := range []struct {
+		pragma string
+		want   string
+	}{
+		{"journal_mode", "wal"},
+		{"busy_timeout", "5000"},
+		{"foreign_keys", "1"},
+	} {
+		var got string
+		if err := s.DB().QueryRowContext(ctx, "PRAGMA "+probe.pragma).Scan(&got); err != nil {
+			t.Fatalf("PRAGMA %s: %v", probe.pragma, err)
+		}
+		if got != probe.want {
+			t.Errorf("PRAGMA %s = %s, want %s", probe.pragma, got, probe.want)
+		}
+	}
+}
