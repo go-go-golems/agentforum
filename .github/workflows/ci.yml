@@ -1,0 +1,65 @@
+# agentforum CI — the full local validation gate, on every push and PR.
+#
+# Mirrors the gate run before every milestone commit (AGENTFORUM-001..005):
+#   gofmt, go vet + tests, buf codegen drift, web type-check + tests + build,
+#   and the embed-tagged build (which requires the web build first, since
+#   internal/server/embed/public is gitignored and staged by build-web).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+
+      - name: go vet
+        run: GOWORK=off go vet ./...
+
+      - name: go test
+        run: GOWORK=off go test ./... -count=1
+
+      - name: go build (no embed tag)
+        run: GOWORK=off go build ./...
+
+      - name: buf codegen drift
+        uses: bufbuild/buf-setup-action@v1
+      - name: generate and compare
+        run: |
+          buf generate proto
+          git diff --exit-code -- gen web/src/pb
+
+      - name: web type-check + tests + build
+        run: |
+          pnpm --dir web install --frozen-lockfile
+          pnpm --dir web check
+          pnpm --dir web test
+          pnpm --dir web build
+
+      - name: go build (embed tag)
+        run: |
+          rm -rf internal/server/embed/public
+          cp -r web/dist internal/server/embed/public
+          GOWORK=off go build -tags embed ./...

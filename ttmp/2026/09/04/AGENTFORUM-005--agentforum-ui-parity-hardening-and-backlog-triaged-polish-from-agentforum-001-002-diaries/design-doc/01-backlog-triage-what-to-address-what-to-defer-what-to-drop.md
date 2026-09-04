@@ -80,8 +80,14 @@ single workflow running: `gofmt` check, `GOWORK=off go test ./...`,
 `go vet`, both build variants (with a `make build-web` step for
 `-tags embed`), `pnpm --dir web check test build`, and a codegen drift
 check (`buf generate proto && git diff --exit-code -- gen web/src/pb`).
-This subsumes the AGENTFORUM-001 "guide-drift CI check" leftover (the
-guide is embedded via `go:generate`; the drift check covers it).
+DONE (P2): `.github/workflows/ci.yml` runs the exact local gate on every
+push/PR/dispatch — gofmt, `GOWORK=off go vet` + tests, buf codegen drift
+(`buf generate proto` + `git diff --exit-code`), pnpm check/test/build,
+and the embed-tagged build after staging `web/dist` (the embed dir is
+gitignored, so the web build must precede it). Validated: actionlint
+clean and every step's command run verbatim locally, all green. Open
+item: the repo has no origin remote, so a live green GitHub run awaits
+the user's decision to create/push the repo.
 
 ### A5. `ListPosts` pagination cursor over HTTP
 

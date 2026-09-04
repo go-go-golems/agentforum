@@ -115,3 +115,51 @@ A3 was the owed verification: prove the af_ guard suffices or find the root caus
 
 ### Technical details
 - Commit: see changelog. Verbatim failing output excerpt: `Error: cannot decode message agentforum.v1.Agent from JSON: key "displayName" is unknown` / `AssertionError: expected 'af_' to be ''`.
+
+## Step 3: P2 (A4) — CI workflow mirroring the local gate
+
+Wrote `.github/workflows/ci.yml` and validated it as far as a local-only
+repo allows: actionlint clean and every step's command executed verbatim
+on this machine, green. The live GitHub run is pending the user's
+decision to create an origin remote (the repo has none).
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2 — same task prompt)
+
+**Assistant interpretation:** Implement A4: a CI workflow running the full gate, verified green.
+
+**Inferred user intent:** The gate exists only on this machine; CI makes every future change (including all remaining A items) protected.
+
+### What I did
+- Wrote `.github/workflows/ci.yml` (push to main, PRs, manual dispatch): checkout → setup-go (`go-version-file: go.mod`) → pnpm 10 + node 24 (cache keyed on `web/pnpm-lock.yaml`) → gofmt check → `GOWORK=off go vet ./...` → `GOWORK=off go test ./... -count=1` → `go build ./...` → buf setup + `buf generate proto` + `git diff --exit-code -- gen web/src/pb` → pnpm install/check/test/build → stage `web/dist` into `internal/server/embed/public` → `GOWORK=off go build -tags embed ./...`.
+- Validated: `actionlint .github/workflows/ci.yml` clean; then ran each step's shell command locally, verbatim, all green (gofmt ok, vet ok, 3 package test runs ok, build ok, no codegen drift, pnpm install/check/9 tests/build ok, embed build ok).
+
+### Why
+A4 was the triage doc's top ordering recommendation: the only item that protects all future work, subsuming the guide-drift check (the agent guide is embedded via `go:generate`; the buf drift step covers generated code, and the embed build compiles the embedded help).
+
+### What worked
+- The step order falls out of one constraint: `internal/server/embed/public` is gitignored, so the embed-tagged build must come after the web build stages it.
+
+### What didn't work
+- `which actionlint` failed (not installed); fixed with `go install github.com/rhysd/actionlint/cmd/actionlint@latest`. First local `pnpm install` in the verbatim sequence printed `Done in 421ms using pnpm v10.13.1` — harmless version skew between the local pnpm (10.13.1 via install, 10.15.1 on PATH elsewhere); the workflow pins `version: 10`.
+
+### What I learned
+- The whole gate is plain shell — every CI step could be validated locally by running its command verbatim; only the Actions runner environment (setup actions, cache) is untestable without a remote.
+
+### What was tricky to build
+- Caching: `actions/setup-node` pnpm cache requires `cache-dependency-path: web/pnpm-lock.yaml` since the lockfile is not at the repo root.
+- gofmt step in CI differs slightly from the local gate (no `grep -v embed/public` needed — the dir is gitignored and absent from a fresh checkout).
+
+### What warrants a second pair of eyes
+- The repo has **no origin remote**, so the workflow has never executed on GitHub runners. Exact evidence: `git config --get remote.origin.url` → empty; `git log --oneline -3` shows local-only history. Creating the repo under the go-go-golems org (or elsewhere) is a user decision; the run should be watched after that (`gh run watch`).
+
+### What should be done in the future
+- When the user decides on the remote: push, then `gh run watch` the first CI run and record the result here.
+
+### Code review instructions
+- Start: `.github/workflows/ci.yml`.
+- Validate: `actionlint .github/workflows/ci.yml` and the step commands (or push and watch the run).
+
+### Technical details
+- Commit: see changelog. Local pnpm note: PATH `pnpm --version` = 10.15.1 but the frozen install reported v10.13.1 — verify no lockfile drift resulted (`git diff --exit-code -- web/pnpm-lock.yaml` was clean after install).

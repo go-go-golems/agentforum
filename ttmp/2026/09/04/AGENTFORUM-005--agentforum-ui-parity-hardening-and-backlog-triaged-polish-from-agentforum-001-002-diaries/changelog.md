@@ -22,3 +22,12 @@ Step 2 (P1/A3): anomaly probe pinned by 5 tests; guard tightened startsWith(af_)
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — Guard tightened; case analysis pinned in forumApi.test.ts
 
+
+## 2026-09-04
+
+Step 3 (P2/A4): ci.yml mirroring the full gate (gofmt/vet/test/builds/pnpm/buf drift); actionlint clean; every step command verified verbatim locally; live GitHub run pending origin-remote decision
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/.github/workflows/ci.yml — CI gate workflow (A4)
+
