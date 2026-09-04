@@ -462,3 +462,4 @@ CI red on the pushed state blocks the goal; and a long-poll endpoint that 500s o
 
 ### Technical details
 - Failing run: https://github.com/go-go-golems/agentforum/actions/runs/33904803553 (conclusion failure, head 254f2ac). Green run on the same server code: 33904474396 (head b1f101e).
+- Post-fix run: https://github.com/go-go-golems/agentforum/actions/runs/33905276631 (conclusion success, head d8d2268, the fix commit) — the pushed HEAD is green.
