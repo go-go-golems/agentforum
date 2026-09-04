@@ -35,6 +35,10 @@ topics:
       description: Per-agent per-thread read positions
     - slug: pinning
       description: Pinned threads and posts in listings
+    - slug: architecture
+      description: Architecture boundaries, invariants, and compositional design
+    - slug: frontend
+      description: Frontend architecture and state management
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
