@@ -43,3 +43,12 @@ Step 4 (S3): useEventStream switched to the SSE stream (fetch reader + parseSSEC
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/hooks/useEventStream.ts — Stream consumer with reconnect ownership
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/lib/sse.ts — Frame parser, chunk-boundary safe
 
+
+## 2026-09-04
+
+Step 5 (S4): help entries + README updated for the stream, design doc WAL premise amended; full gate green; pushed (aff6687) with CI green (run 33909160006); complete bundle on reMarkable at /ai/2026/09/04/AGENTFORUM-004
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/doc/topics/02-unified-inbox.md — Stream endpoint section
+

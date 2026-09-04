@@ -289,4 +289,5 @@ The milestone is not done until the embedded guide, README, and CI all agree wit
 - Validate: `agentforum help unified-inbox`; the gate block above.
 
 ### Technical details
-- Commits and the CI run: see below.
+- Commits: e3d1ec9 (store DSN fix), ae9e1e3 (S2 endpoint), c588a7f (S3 client), aff6687 (S4 docs).
+- CI on the milestone head: https://github.com/go-go-golems/agentforum/actions/runs/33909160006 (conclusion success, head aff6687).
