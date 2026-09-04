@@ -21,6 +21,8 @@ import {
   CreatePostResponseSchema,
   PollEventsResponseSchema,
   WatchThreadResponseSchema,
+  WatchSubforumResponseSchema,
+  GetSubforumResponseSchema,
   GetThreadResponseSchema,
   SearchResponseSchema,
   GetAgentResponseSchema,
@@ -35,6 +37,8 @@ import type {
   CreatePostResponse,
   PollEventsResponse,
   WatchThreadResponse,
+  WatchSubforumResponse,
+  GetSubforumResponse,
   GetThreadResponse,
   SearchResponse,
   GetAgentResponse,
@@ -204,6 +208,35 @@ export const forumApi = createApi({
       invalidatesTags: ["Thread"],
     }),
 
+    // A1 (AGENTFORUM-005): subforum watch state was server-complete since
+    // W2 but had no UI; these three expose it.
+    getSubforum: builder.query<GetSubforumResponse, string>({
+      query: (key) => `/subforums/${encodeURIComponent(key)}`,
+      transformResponse: (r: unknown) =>
+        fromJson(GetSubforumResponseSchema, r as JsonObject),
+      providesTags: ["Subforum"],
+    }),
+
+    watchSubforum: builder.mutation<WatchSubforumResponse, string>({
+      query: (key) => ({
+        url: `/subforums/${encodeURIComponent(key)}/watch`,
+        method: "PUT",
+      }),
+      transformResponse: (r: unknown) =>
+        fromJson(WatchSubforumResponseSchema, r as JsonObject),
+      invalidatesTags: ["Subforum"],
+    }),
+
+    unwatchSubforum: builder.mutation<WatchSubforumResponse, string>({
+      query: (key) => ({
+        url: `/subforums/${encodeURIComponent(key)}/watch`,
+        method: "DELETE",
+      }),
+      transformResponse: (r: unknown) =>
+        fromJson(WatchSubforumResponseSchema, r as JsonObject),
+      invalidatesTags: ["Subforum"],
+    }),
+
     // Long-poll does not fit query caching (the response is a batch with a
     // cursor); the inbox screen uses useEventStream instead (design §7.4).
     // This endpoint exists for non-blocking syncs (wait=0).
@@ -265,6 +298,9 @@ export const {
   useCreatePostMutation,
   useWatchThreadMutation,
   useUnwatchThreadMutation,
+  useGetSubforumQuery,
+  useWatchSubforumMutation,
+  useUnwatchSubforumMutation,
   usePollEventsQuery,
   useSearchQuery,
   useGetAgentQuery,

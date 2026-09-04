@@ -163,3 +163,56 @@ A4 was the triage doc's top ordering recommendation: the only item that protects
 
 ### Technical details
 - Commit: see changelog. Local pnpm note: PATH `pnpm --version` = 10.15.1 but the frozen install reported v10.13.1 — verify no lockfile drift resulted (`git diff --exit-code -- web/pnpm-lock.yaml` was clean after install).
+
+## Step 4: P3 (A1) — subforum watch UI; W7 anomaly root-caused live
+
+Implemented the A1 UI parity (watch/unwatch subforum). During live
+verification the register flow failed intermittently — and the failure
+turned out to be the W7 anomaly itself, reproduced and root-caused:
+an RTK Query invalidation race that wiped freshly-registered tokens.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2 — same task prompt)
+
+**Assistant interpretation:** Implement A1 (subforum watch/unwatch UI over the existing server endpoints), verify live, screenshot.
+
+**Inferred user intent:** Complete the contract-exposed-but-invisible watch surface in the UI.
+
+### What I did
+- forumApi: added `getSubforum`, `watchSubforum`, `unwatchSubforum` (PUT/DELETE `/subforums/{key}/watch` existed server-side since W2); exported the three hooks.
+- SubforumListScreen: per-row Watch button; row restructured from `<button>` to a div with `role="button"` + keyboard handler (nested buttons are invalid HTML); toggle stops propagation.
+- ThreadListScreen: subforum header strip with description + "Watch subforum"/"Watching subforum" toggle mirroring the ThreadDetailScreen idiom.
+- Debugged the intermittent register failure (below), fixed App.tsx, and verified A1 live: register → subforum list → Watch flips the row to "Watching" (tag invalidation refetch) → subforum page header shows "Watching subforum" → click → "Watch subforum". Screenshots 01/02 in screens/.
+
+### Why
+A1 was the cheapest shipped-feature completion; the detour was forced because its verification could not proceed through a register flow that dropped tokens.
+
+### What worked
+- The eventual fix is one line of intent: skip getMe when no token exists.
+
+### What didn't work
+- The register flow dropped the token intermittently (3 of 4 button-click attempts). Evidence trail: POST /v1/agents/register => 201, then GET /v1/me => 401 **with no Authorization header**, then post-reload getMe also headerless. A `localStorage.setItem` spy was wiped by the page reload before it could report (assignments to `location.reload` silently fail in Chrome — the reload ran anyway). A `console.log` probe never appeared in the console because the browser kept serving a heuristically-cached OLD index.html+bundle after rebuilds — the current build's asset hash (index-BJy4ilhA.js) differed from the served one (index-YmOF4zMO.js). Root cause of THAT confusion: `kill -x agentforum` is a no-op (the flag does not exist on the kill builtin; the old server kept the port and my rebuilt binary died with `Error: agentforum: serve: listen tcp 127.0.0.1:8919: bind: address already in use`). Correct tool: `pkill -x agentforum` — the same W7 pitfall, recorded there, struck again.
+
+### What I learned
+- The W7 anomaly, root cause (found live, not hypothesized): the register mutation has `invalidatesTags: ["Agent"]`; RTK Query refetches the subscribed `getMe` in the window before `RegisterScreen`'s `setToken` runs; the tokenless refetch 401s; `App.tsx` cleared the token on ANY 401 — wiping the just-stored credential. Intermittent by microtask timing. Fix: `useGetMeQuery(undefined, { skip: !getToken() })` — with no token there is no request, so no spurious 401; a 401 that still arrives must have carried a stale token, which is exactly the case clearToken exists for. This also removes the spurious 401 console error on every register-screen load.
+- The P1 conclusion (decode path cannot fabricate tokens) remains true — it just wasn't the mechanism. Two separate real bugs found in one ticket: the loose prefix guard (P1) and this race (P3).
+
+### What was tricky to build
+- Debugging through three layers of misdirection: (1) reload wiping spies and console logs — solved by persisting debug state in localStorage and using `Network.setCacheDisabled` via CDP; (2) the browser's heuristic cache serving a stale bundle after server rebuilds — masked by disabling cache via CDP; (3) the zombie server process serving the old embed — found via `pgrep -ax agentforum` showing two processes and the bind error in the serve log. Each layer made the previous layer's evidence a lie.
+
+### What warrants a second pair of eyes
+- App.tsx now reads `getToken()` during render to compute `skip`. After a 401 → clearToken → re-render, `getToken()` is "" and the query skips — RegisterScreen shows. This relies on RTK re-rendering on isError, which it does; but if the 401 arrives while a token EXISTS (stale token case), the skip only takes effect on the next render — verify the stale-token logout path still works (it did in W5-era testing; re-verified manually below in Step 5's flow if time permits).
+- The register mutation still carries `invalidatesTags: ["Agent"]`; with getMe skipped it is a no-op at registration time. It stays semantically correct for any future authenticated agent-list mutations.
+
+### What should be done in the future
+- P4 (A2: profile editing) next; also consider a `no-cache` header on the SPA fallback (the heuristic-cache staleness I hit would affect real users after upgrades) — added to the P5/notes pile.
+
+### Code review instructions
+- Start: `web/src/App.tsx` (skip fix + explanation), `web/src/store/forumApi.ts` (three new endpoints), `web/src/components/pages/SubforumListScreen/SubforumListScreen.tsx` (row restructure), `web/src/components/pages/ThreadListScreen/ThreadListScreen.tsx` (header toggle).
+- Validate: `pnpm --dir web check && pnpm --dir web test`, then live: `make build-embed && agentforum serve`, register, toggle Watch on a subforum row and on the subforum page.
+- Reproduce the fixed bug: before the fix, register via button click repeatedly — the token disappears intermittently; after, 8/8 succeed (Network.setCacheDisabled via CDP to avoid stale bundles).
+
+### Technical details
+- Verification loop (verbatim result): 8 iterations, every one `{ token: "af_…", banner: true, registerForm: false }`, on bundle index-BJy4ilhA.js.
+- Server restart pitfall: `pkill -x agentforum` (NOT `kill -x`); check `pgrep -ax agentforum` for strays.

@@ -31,3 +31,14 @@ Step 3 (P2/A4): ci.yml mirroring the full gate (gofmt/vet/test/builds/pnpm/buf d
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/.github/workflows/ci.yml — CI gate workflow (A4)
 
+
+## 2026-09-04
+
+Step 4 (P3/A1): watch/unwatch subforum UI (forumApi endpoints + row buttons + subforum-page header toggle), verified live with screenshots; W7 anomaly root-caused as RTK invalidation race and fixed in App.tsx (skip getMe without token), 8/8 register flows green
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/App.tsx — W7 anomaly fix — skip getMe when no token exists
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/pages/SubforumListScreen/SubforumListScreen.tsx — Row restructure + Watch buttons
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — getSubforum/watchSubforum/unwatchSubforum
+

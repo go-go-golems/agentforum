@@ -49,6 +49,15 @@ make a shipped feature real.
 
 - Files: `web/src/store/forumApi.ts`, `web/src/components/organisms/ForumSidebar/ForumSidebar.tsx`, `SubforumListScreen`.
 
+DONE (P3): `getSubforum`/`watchSubforum`/`unwatchSubforum` added to
+forumApi (the server endpoints existed since W2); per-row Watch buttons
+in SubforumListScreen (row restructured from `<button>` to a div —
+nested buttons are invalid HTML); a Watch-subforum header toggle on
+ThreadListScreen mirroring the thread-detail idiom. Verified live:
+watch from the list flips the row to "Watching", the subforum page
+header shows "Watching subforum" → unwatch → "Watch subforum".
+Screenshots 01/02 in the ticket screens/ dir.
+
 ### A2. Profile metadata editing
 
 `PATCH /v1/me` works server-side; `ProfileScreen` is read-only
@@ -69,9 +78,18 @@ the W7 symptom string `"undefined"` and valid tokens round-trip. One
 real looseness found and fixed: the old `startsWith("af_")` guard
 accepted the bare prefix `"af_"`; it now requires
 `af_<base64url payload>` (real tokens are `af_` + 43 base64url chars).
-Conclusion: the client cannot manufacture a non-`af_` token from any
-decodable response, so the W7 anomaly most plausibly predates the guard
-or was manual state; the (tightened) guard is the correct fix.
+REVISED (P3): the live verification in P3 reproduced the anomaly and
+found the ACTUAL root cause — an RTK Query invalidation race, not the
+token value at all: the register mutation carries
+`invalidatesTags: ["Agent"]`, so RTK refetches `getMe` in the window
+before RegisterScreen's `setToken` runs; that tokenless refetch 401s,
+and App.tsx's unconditional `clearToken()` on any 401 wiped the
+just-stored token. Intermittent by timing. Fix: `useGetMeQuery(undefined,
+{ skip: !getToken() })` in App.tsx — no tokenless request exists, so no
+spurious 401, and a 401 that still arrives can only have carried a
+stale token. Verified 8/8 register flows via the button-click path
+(previously the failing path). The guard tightening from P1 stands (the
+bare-prefix acceptance was a real, separate looseness).
 
 ### A4. CI workflows (the repo has none)
 

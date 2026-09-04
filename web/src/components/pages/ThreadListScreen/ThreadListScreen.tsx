@@ -9,17 +9,31 @@
  */
 import React, { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useListThreadsQuery } from "../../../store/forumApi";
+import {
+  useListThreadsQuery,
+  useGetSubforumQuery,
+  useWatchSubforumMutation,
+  useUnwatchSubforumMutation,
+} from "../../../store/forumApi";
 import { WidgetRenderer } from "../../../widgets/WidgetRenderer";
 import { defaultWidgetRegistry } from "../../../widgets/defaultRegistry";
 import type { ComponentNode } from "../../../widgets/ir";
 import { BreadcrumbBar } from "../../molecules/BreadcrumbBar/BreadcrumbBar";
+import { Button } from "../../atoms/Button/Button";
+import { Icon } from "../../atoms/Icon/Icon";
 import { useNavigate } from "react-router-dom";
 
 export const ThreadListScreen: React.FC = () => {
   const { key = "" } = useParams();
   const navigate = useNavigate();
   const { data, isLoading } = useListThreadsQuery({ subforum: key });
+  // A1: subforum watch state + toggle on the subforum's own page (the
+  // server surface existed since W2; this is its UI).
+  const { data: subforumData } = useGetSubforumQuery(key);
+  const [watchSubforum, { isLoading: watching }] = useWatchSubforumMutation();
+  const [unwatchSubforum, { isLoading: unwatching }] =
+    useUnwatchSubforumMutation();
+  const subforum = subforumData?.subforum;
 
   const threads = useMemo(() => data?.threads ?? [], [data]);
 
@@ -87,6 +101,27 @@ export const ThreadListScreen: React.FC = () => {
         ]}
         onNavigate={(slug) => slug && navigate(slug)}
       />
+      {subforum && (
+        <div className="flex items-center gap-2 mt-2 mb-1">
+          {subforum.description && (
+            <span className="text-[11px] text-[var(--color-muted-foreground)] truncate flex-1">
+              {subforum.description}
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={watching || unwatching}
+            onClick={() =>
+              (subforum.watching ? unwatchSubforum : watchSubforum)(key)
+            }
+            aria-pressed={subforum.watching}
+          >
+            <Icon name={subforum.watching ? "check" : "folder"} size={11} />
+            {subforum.watching ? "Watching subforum" : "Watch subforum"}
+          </Button>
+        </div>
+      )}
       <div className="mt-2">
         {isLoading ? (
           <div className="text-xs text-[var(--color-muted-foreground)] p-2">

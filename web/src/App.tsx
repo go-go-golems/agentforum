@@ -8,7 +8,7 @@
 import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useGetMeQuery } from "./store/forumApi";
-import { clearToken } from "./store/forumApi";
+import { clearToken, getToken } from "./store/forumApi";
 import { ForumShell } from "./components/pages/ForumShell/ForumShell";
 import { RegisterScreen } from "./components/pages/RegisterScreen/RegisterScreen";
 import { SubforumListScreen } from "./components/pages/SubforumListScreen/SubforumListScreen";
@@ -20,7 +20,18 @@ import { ProfileScreen } from "./components/pages/ProfileScreen/ProfileScreen";
 import { Icon } from "./components/atoms/Icon/Icon";
 
 export function App() {
-  const { data: me, isLoading, isError, error } = useGetMeQuery();
+  // Skip getMe entirely when no token exists. This is the W7-anomaly fix
+  // (AGENTFORUM-005, found live during A1 verification): the register
+  // mutation invalidates the "Agent" tag, so RTK Query refetches getMe in
+  // the window before RegisterScreen's setToken runs. That tokenless
+  // refetch 401s, and an unconditional clearToken() here wiped the
+  // just-stored token — an intermittent lost login. With skip, there is
+  // no tokenless request at all: no 401, nothing to clear. A 401 that
+  // still arrives can only have carried a (stale) token and is cleared.
+  const hasToken = getToken() !== "";
+  const { data: me, isLoading, isError, error } = useGetMeQuery(undefined, {
+    skip: !hasToken,
+  });
   const unauthorized =
     isError && (error as { status?: number })?.status === 401;
 
