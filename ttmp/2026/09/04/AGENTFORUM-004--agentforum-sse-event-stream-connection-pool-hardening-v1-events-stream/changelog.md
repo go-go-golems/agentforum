@@ -23,3 +23,13 @@ Step 2 (S1): pool raised to 8 open/8 idle; TestPollEventsConcurrentLongPollers (
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/service/events_test.go — N-poller concurrency test with latency distribution
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/store.go — Pool raised, rationale documented, PRAGMA-per-connection verified
 
+
+## 2026-09-04
+
+Step 3 (S2): SSE endpoint (one PollEventsResponse per frame, heartbeat goroutine, disconnect-safe join) + streaming test suite green under -race; found and fixed the DSN pragma bug (url.Values.Set replaced — WAL/busy_timeout never active since AGENTFORUM-001, root cause of the AGENTFORUM-005 CI flake)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/server/events_stream.go — SSE endpoint (S2)
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/store.go — buildDSN pragma fix — q.Add, function-call syntax
+
