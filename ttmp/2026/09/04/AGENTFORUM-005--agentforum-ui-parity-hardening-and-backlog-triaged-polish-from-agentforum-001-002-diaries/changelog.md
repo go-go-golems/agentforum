@@ -80,3 +80,12 @@ Step 8: repo created (go-go-golems/agentforum, private), 46 commits pushed, firs
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/.github/workflows/ci.yml — First run green: https://github.com/go-go-golems/agentforum/actions/runs/33904474396
 
+
+## 2026-09-04
+
+Step 9: CI flake triage — full-window long-poll 500 proven (TestLongPollTimeoutReturnsEmpty failed pre-fix) and fixed (pollGrace margin + context-error empty response); body now printed in TestLongPollDelivery failures
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/server/handlers.go — pollGrace margin + context-deadline empty response
+

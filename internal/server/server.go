@@ -9,6 +9,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-go-golems/agentforum/internal/models"
 	"github.com/go-go-golems/agentforum/internal/service"
@@ -24,6 +25,12 @@ const (
 // maxWaitSeconds caps the long-poll deadline for GET /v1/events so a client
 // cannot pin a connection indefinitely.
 const maxWaitSeconds = 60
+
+// pollGrace is the margin the poll context gets over the service's wait
+// budget, so the service's own deadline logic concludes a full-window poll
+// cleanly instead of being cancelled by the context (see handlePollEvents;
+// pinned by TestLongPollTimeoutReturnsEmpty).
+const pollGrace = time.Second
 
 // Server is the agentforum HTTP API. Construct with New and serve it with
 // net/http; the zero additional configuration is deliberate.

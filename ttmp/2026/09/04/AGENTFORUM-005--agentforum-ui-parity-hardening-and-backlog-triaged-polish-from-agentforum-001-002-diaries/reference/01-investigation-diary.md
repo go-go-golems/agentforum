@@ -408,3 +408,57 @@ The goal required the workflow to pass on GitHub where observable; until now it 
 
 ### Technical details
 - Repo: https://github.com/go-go-golems/agentforum (private). Run conclusion JSON: `{"conclusion":"success", ...}`. 46 commits on main at b1f101e.
+
+## Step 9: CI flake triage — full-window long-poll returned 500, fixed
+
+The second CI run (254f2ac, docs-only diff over green run 1) failed
+`TestLongPollDelivery` with "poll status 500" at 0.27s. The failure did
+not reproduce locally (18 targeted + 5 full-suite runs green, including
+`go test ./...` with CI's package parallelism). Triaging the 500 led to a
+real, provable server bug adjacent to the flake.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Continue working toward the active thread goal. ... Before marking the goal complete, audit progress against the objective and call update_goal ... with status 'complete' only when every requirement is verified."
+
+**Assistant interpretation:** Get the pushed HEAD to a green CI state; triage the failure rather than rerunning blindly.
+
+**Inferred user intent:** A red CI run on the pushed state is not acceptable completion evidence.
+
+### What I did
+- Pulled the failed run's log (`gh run view 33904803553 --log-failed`): `--- FAIL: TestLongPollDelivery (0.27s) / server_test.go:398: poll status 500`. The 500 body is elided by design (`writeServiceError` hides internal messages), so the exact error was not observable.
+- Failed to reproduce locally: `TestLongPollDelivery -count=10` green, full server suite ×8 green, `go test ./... -count=2` ×5 green (same package parallelism as CI).
+- Read the poll handler with the failure in mind and found the bug: `handlePollEvents` created `pollCtx` with a timeout of exactly `wait` seconds, while `PollEvents` computes its internal deadline microseconds LATER — so on a full-window poll the context deadline fires first, cancels the service's final sleep, and `PollEvents` returns `context.DeadlineExceeded` → unmapped → **500**. A timed-out long-poll is the normal "no news" case; returning 500 for it is wrong on any machine.
+- Proved it with a new test first: `TestLongPollTimeoutReturnsEmpty` (long-poll with wait=1 and no event) failed with verbatim output `timed-out long-poll: status 500, body map[code:internal message:internal error schemaVersion:1]`.
+- Fixed in two layers: (1) the poll context now gets `pollGrace` (1s) over the wait budget so the service's own deadline logic concludes the poll cleanly; (2) a residual context error from `PollEvents` when `pollCtx.Err() != nil` (client disconnect, extreme grace overrun) now returns the empty response instead of 500 — the service's cursor is still returned, so the client's forward-only cursor semantics hold.
+- Also made `TestLongPollDelivery`'s failure message print the response body for future diagnosability.
+
+### Why
+CI red on the pushed state blocks the goal; and a long-poll endpoint that 500s on its normal timeout path would break every real client's idle cycle (the web UI's `useEventStream` polls with wait=25 — every quiet 25s window would have been a 500 retried by the loop).
+
+### What worked
+- The new test failed exactly as predicted before the fix and passes after — the diagnosis was provable, not speculative.
+
+### What didn't work
+- The 0.27s CI failure itself is NOT fully explained by the deadline bug (the window was 2s). It remains a slow-runner flake with an unobservable cause (elided 500 body); the fix removes the entire class of context-deadline 500s and the improved failure message will surface the body if it recurs. Recorded as a watch item, not a closed case.
+
+### What I learned
+- Two deadlines set to the same duration from different start points are a race by construction — the later one loses. Context cancellation and internal deadline logic must be layered (grace margin), never coincident.
+- `writeServiceError`'s elision is correct for the wire but costs diagnosability; printing the body in test failure messages is the cheap complement.
+
+### What was tricky to build
+- Matching the multi-line tab-indented Go edit via exact-text replacement (whitespace mismatches); resolved with a scripted edit anchored on `cat -A`-verified text.
+
+### What warrants a second pair of eyes
+- The flake watch item above: if `TestLongPollDelivery` fails again on CI, the body in the failure message is now the first thing to read.
+- The grace margin (1s) is sized for scheduler jitter, not for a pathological runner; a runner slower than 1s over a 2s window would still hit the context-error fallback — which now returns 200 empty, so it degrades correctly rather than erroring.
+
+### What should be done in the future
+- Watch the next CI runs; consider `t.Short()` skips for timing-sensitive tests if CI flakiness recurs.
+
+### Code review instructions
+- Start: `internal/server/handlers.go` (`pollGrace` comment + context-error branch), `internal/server/server.go` (`pollGrace` const), `internal/server/server_test.go` (`TestLongPollTimeoutReturnsEmpty`).
+- Validate: `GOWORK=off go test ./internal/server/ -run TestLongPoll -count=1 -v` (both green), then the full gate.
+
+### Technical details
+- Failing run: https://github.com/go-go-golems/agentforum/actions/runs/33904803553 (conclusion failure, head 254f2ac). Green run on the same server code: 33904474396 (head b1f101e).

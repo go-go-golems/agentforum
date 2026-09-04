@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -354,7 +355,14 @@ func (s *Server) handlePollEvents(w http.ResponseWriter, r *http.Request) {
 	pollCtx := ctx
 	if wait > 0 {
 		var cancel context.CancelFunc
-		pollCtx, cancel = context.WithTimeout(ctx, time.Duration(wait)*time.Second)
+		// The poll context bounds the request slightly beyond the service's
+		// own wait budget (pollGrace). PollEvents computes its internal
+		// deadline when it starts — microseconds after this context's — so
+		// without a margin the context fires first, cancels the service's
+		// final sleep, and the resulting context error would surface as a
+		// 500 instead of the normal empty response (pinned by
+		// TestLongPollTimeoutReturnsEmpty).
+		pollCtx, cancel = context.WithTimeout(ctx, time.Duration(wait)*time.Second+pollGrace)
 		defer cancel()
 	}
 
@@ -364,8 +372,16 @@ func (s *Server) handlePollEvents(w http.ResponseWriter, r *http.Request) {
 		Scope:  q.Get("scope"), // comma-separated: involved,watching,watched-subforums
 	})
 	if err != nil {
-		writeServiceError(w, err)
-		return
+		// A poll that ran out its window is the normal "no news" case, not
+		// an error: the service returns its cursor even when the wait budget
+		// is exhausted. This also covers a client disconnect (the write
+		// below is a no-op then). Anything else is a real error.
+		if pollCtx.Err() != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+			events = nil
+		} else {
+			writeServiceError(w, err)
+			return
+		}
 	}
 
 	// Denormalize actor names and thread titles for inbox display in two

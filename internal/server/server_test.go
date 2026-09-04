@@ -395,7 +395,7 @@ func TestLongPollDelivery(t *testing.T) {
 	<-done
 	elapsed := time.Since(start)
 	if pollStatus != http.StatusOK {
-		t.Fatalf("poll status %d", pollStatus)
+		t.Fatalf("poll status %d, body %v", pollStatus, pollBody)
 	}
 	if events := get[[]any](pollBody, "events"); len(events) != 1 {
 		t.Fatalf("poll events: %v", pollBody)
@@ -489,5 +489,50 @@ func TestListPostsPagination(t *testing.T) {
 	code, out = alice.do("GET", fmt.Sprintf("/v1/threads/%s/posts?after=po_nonexistent", threadID), nil)
 	if code != http.StatusNotFound || str(out, "code") != "not_found" {
 		t.Fatalf("unknown after: status %d, body %v", code, out)
+	}
+}
+
+// TestLongPollTimeoutReturnsEmpty pins the full-window path: a long-poll
+// that waits its entire wait budget with no eligible event must return an
+// empty 200 (the "no news" case), not a 500. The handler's poll context
+// deadline and the service's internal wait budget are both `wait` seconds;
+// without a grace margin the context fires first, cancels the service's
+// sleep, and the resulting context error is an unmapped 500.
+func TestLongPollTimeoutReturnsEmpty(t *testing.T) {
+	ts, cleanup := newTestServer(t)
+	defer cleanup()
+
+	alice, _ := register(t, ts, "alice")
+	bob, _ := register(t, ts, "bob")
+
+	_, out := alice.do("POST", "/v1/subforums", map[string]any{"key": "eng"})
+	if code := out["code"]; code != nil {
+		t.Fatalf("subforum: %v", out)
+	}
+	_, out = alice.do("POST", "/v1/subforums/eng/threads", map[string]any{
+		"title":       "t",
+		"initialPost": map[string]any{"body": "open"},
+	})
+	threadID := str(get[map[string]any](out, "thread"), "id")
+	_, _ = bob.do("PUT", fmt.Sprintf("/v1/threads/%s/watch", threadID), nil)
+
+	// Drain so the long-poll starts caught up; then wait out the window.
+	_, out = bob.do("GET", "/v1/events?cursor=0&wait=0", nil)
+	cursor := get[string](out, "nextCursor")
+
+	start := time.Now()
+	code, out := bob.do("GET", "/v1/events?cursor="+cursor+"&wait=1", nil)
+	elapsed := time.Since(start)
+	if code != http.StatusOK {
+		t.Fatalf("timed-out long-poll: status %d, body %v", code, out)
+	}
+	if events := get[[]any](out, "events"); len(events) != 0 {
+		t.Fatalf("expected no events, got %v", out)
+	}
+	if nc := get[string](out, "nextCursor"); nc != cursor {
+		t.Fatalf("nextCursor drifted: %v -> %v", cursor, nc)
+	}
+	if elapsed < time.Second {
+		t.Fatalf("returned early: %v", elapsed)
 	}
 }
