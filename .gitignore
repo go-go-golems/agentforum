@@ -17,3 +17,4 @@ web/node_modules/
 web/.vite/
 internal/server/embed/public/
 agentforum
+.playwright-mcp/
