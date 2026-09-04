@@ -193,3 +193,100 @@ The design's S2 contract; the endpoint is the transport half of the milestone.
 ### Technical details
 - Commits: e3d1ec9 (store), ae9e1e3 (endpoint). Failing probe before the fix: `journal_mode=delete busy_timeout=0`; after: `wal / 5000 / 1`.
 - Race trace (abridged): `bufio.(*Writer).WriteString ← net/http.(*response).finishRequest ← (*conn).serve` concurrent with the heartbeat goroutine's write.
+
+## Step 4: S3 — the inbox consumes the stream
+
+Replaced the inbox's long-poll loop with a persistent SSE connection,
+extracted and unit-tested the frame parser, and verified the full
+lifecycle in the browser: connect, live delivery, disconnect,
+reconnect.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 3 — same task prompt)
+
+**Assistant interpretation:** Implement S3: the client half of the SSE milestone.
+
+**Inferred user intent:** The inbox becomes a genuine stream with the reconnect/dedupe/cursor guarantees preserved.
+
+### What I did
+- Rewrote the inner half of `useEventStream`: `fetch("/v1/events/stream?cursor=N")` + `res.body.getReader()`, decoded chunks fed to the frame parser; outer loop now owns reconnection with exponential backoff (500ms doubling to 10s, reset on successful connect; a 401 stops retrying). Ingest semantics (dedupe by sequence, cursor persist, forward-only) are unchanged from the long-poll version.
+- Extracted `parseSSEChunk` into `web/src/lib/sse.ts` with 6 unit tests (chunk-boundary splits, separator-exact splits, multi-line data joins, comment/padding skipping, partial remainders).
+- Browser verification on the final build: register → watch a thread → inbox shows "live"; a post from another agent arrives within ~1.5 s (cursor 108→109); server killed → "connection lost" with the cursor held; server restarted → reconnects ("live") and the next post is delivered (cursor 110→111), no duplicates. Screenshots 01–05 in screens/.
+
+### Why
+The design's D1: EventSource cannot send Authorization headers, so the stream is consumed with fetch; losing auto-reconnect is acceptable because the long-poll loop already owned reconnection.
+
+### What worked
+- The parser extraction made the trickiest client logic (chunk-boundary buffering) unit-testable in isolation from React and the network.
+- `networkidle` never firing on the inbox anymore is itself evidence the stream stays open — noted as a Playwright consideration (use `domcontentloaded`).
+
+### What didn't work
+- First browser session of the verification: `localStorage.clear()` on `about:blank` threw `SecurityError: Failed to read the 'localStorage' property` — clear after the first navigation, not before.
+- The first parser test import path was wrong (`../lib/sse` from `lib/__tests__/` — correct is `../sse`); tsc caught it.
+
+### What I learned
+- The inbox's displayed events are React state (not persisted); only the cursor survives a reload. Unchanged from the long-poll version, but worth stating: after a reload the inbox starts empty at the persisted cursor.
+
+### What was tricky to build
+- Keeping the 401 path from retrying forever (the old loop retried 401s every 500ms): the stream version stops on 401 because App clears the token and unmounts the hook.
+
+### What warrants a second pair of eyes
+- Backoff reset happens on successful connect inside `stream()` via the closure variable — verify it cannot strand a high backoff after a flapping connection that repeatedly succeeds then dies immediately (it resets each success; the growth only accumulates across consecutive failures, which is the intent).
+
+### What should be done in the future
+- S4 (docs + gate + bundle) next.
+
+### Code review instructions
+- Start: `web/src/hooks/useEventStream.ts` (stream + loop + ingest), `web/src/lib/sse.ts`, `web/src/lib/__tests__/sse.test.ts`.
+- Validate: `pnpm --dir web check && pnpm --dir web test` (16/16); live: inbox → post from another agent → arrival within ~1.5 s.
+
+### Technical details
+- Commit: see changelog. Verification states (verbatim extracts): live/cursor 108 → post → cursor 109 + event row; killed → "connection lost" cursor 109; restarted → live, cursor 110 → post → cursor 111 + event row.
+
+## Step 5: S4 — docs, gate, delivery
+
+Updated the user-facing docs for the stream, ran the full gate, and
+delivered: pushed to origin and watched CI green.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 3 — same task prompt)
+
+**Assistant interpretation:** Finish S4: help entries, README, gate, bundle, green CI.
+
+**Inferred user intent:** The milestone ends delivered and verified on all surfaces.
+
+### What I did
+- Help: `02-unified-inbox.md` gained a "Server-sent events: the stream endpoint" section (frame shape, heartbeat comments, reconnect semantics, the EventSource auth rationale); `04-web-ui.md`'s transport row now names the stream; README's inbox/summary lines updated. Verified `agentforum help unified-inbox` renders the new section.
+- Amended the design doc §7.1: the "WAL is already enabled" claim was false (see Step 3) — now states the correction and points at `TestOpenPragmasApply`.
+- Full gate: gofmt clean; `go test ./...` 3/3 ok; `-race ./internal/...` 3/3 ok; vet + both build variants ok; buf codegen no drift; tsc ok; vitest 16/16; vite build ok; actionlint ok.
+- Pushed to origin; CI result recorded below.
+
+### Why
+The milestone is not done until the embedded guide, README, and CI all agree with the code.
+
+### What worked
+- The help-entry pipeline (markdown topics embedded in the binary) meant the doc update needed no build changes.
+
+### What didn't work
+- Nothing in this step.
+
+### What I learned
+- N/A.
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- The README now says "long-polling or a server-sent-events stream" — accurate for both the CLI (long-poll) and the web UI (stream).
+
+### What should be done in the future
+- Watch WAL-specific behavior (-wal file growth, checkpointing) on a long-lived real deployment — WAL is genuinely active for the first time.
+
+### Code review instructions
+- Start: `internal/doc/topics/02-unified-inbox.md` (stream section), `internal/doc/topics/04-web-ui.md`, `README.md`.
+- Validate: `agentforum help unified-inbox`; the gate block above.
+
+### Technical details
+- Commits and the CI run: see below.

@@ -33,3 +33,13 @@ Step 3 (S2): SSE endpoint (one PollEventsResponse per frame, heartbeat goroutine
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/server/events_stream.go — SSE endpoint (S2)
 - /home/manuel/code/wesen/2026-09-03--agent-forum/internal/store/store.go — buildDSN pragma fix — q.Add, function-call syntax
 
+
+## 2026-09-04
+
+Step 4 (S3): useEventStream switched to the SSE stream (fetch reader + parseSSEChunk with 6 boundary tests, reconnect backoff, 401 stop); browser-verified live/delivery/disconnect/reconnect with 5 screenshots; vitest 16/16
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/hooks/useEventStream.ts — Stream consumer with reconnect ownership
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/lib/sse.ts — Frame parser, chunk-boundary safe
+

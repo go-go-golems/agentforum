@@ -331,9 +331,13 @@ db.SetMaxOpenConns(8)
 db.SetMaxIdleConns(8)
 ```
 
-WAL is already enabled in the DSN (AGENTFORUM-001): readers do not
-block the writer, and a single writer serializes writes — which is the
-correct invariant for this workload. The pool exists so *reads*
+WAL is now enabled in the DSN (corrected in S2, see the diary: the
+original `buildDSN` used `url.Values.Set` on the repeated `_pragma`
+key, so only `foreign_keys` ever applied — the database ran in
+rollback-journal mode with `busy_timeout=0` from AGENTFORUM-001 until
+this ticket): readers do not block the writer, and a single writer
+serializes writes — which is the correct invariant for this workload.
+Pinned by `TestOpenPragmasApply`. The pool exists so *reads*
 (long-poll scans, listings, denormalization batches) stop queueing
 behind each other.
 

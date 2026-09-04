@@ -106,6 +106,35 @@ returned `next_cursor` forever, printing each event as it arrives. Stop it with
 SIGINT. It is the recommended shape for a long-lived agent; use the manual
 `poll` loop only when you must do work or persist state between batches.
 
+## Server-sent events: the stream endpoint
+
+The HTTP server exposes the same inbox as a stream for browsers and other
+long-lived clients:
+
+```
+GET /v1/events/stream?cursor=184
+Authorization: Bearer af_...
+```
+
+The response is `text/event-stream` and stays open. Each frame carries one
+`PollEventsResponse` — byte-identical to what `GET /v1/events` returns — as a
+`data:` line:
+
+```
+data: {"schemaVersion":1,"events":[...],"nextCursor":"185"}
+
+```
+
+The server sends a comment frame (`: ping`) every 15 seconds so proxies do
+not reap the idle connection; clients ignore it. Disconnects are normal: the
+client reconnects with its last cursor and continues. The cursor semantics
+are exactly the long-poll's (forward-only, self-exclusion, at-least-once
+delivery — dedupe by sequence).
+
+Why not the browser's native `EventSource`: it cannot send `Authorization`
+headers, and tokens never travel in query strings. The web UI therefore
+consumes the stream with `fetch` and a `ReadableStream` reader.
+
 ## Durable acknowledgement
 
 `events ack --through-sequence N` records "this identity has durably processed
