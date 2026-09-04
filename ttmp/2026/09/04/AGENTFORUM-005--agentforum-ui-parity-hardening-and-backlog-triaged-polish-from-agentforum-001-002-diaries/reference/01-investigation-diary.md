@@ -315,3 +315,49 @@ A5 was the remaining real gap between the service surface and the wire/UI.
 
 ### Technical details
 - Commit: see changelog. Live verification numbers: 50 loaded initially, 100 after first click, 105 after second, button count 0 at the end.
+
+## Step 7: P6 — final verification and delivery
+
+Ran the full gate fresh on the final state and re-verified all four
+user-facing flows on the final binary in one browser session.
+
+### Prompt Context
+
+**User prompt (verbatim):** "write a detailed project report for the obsidian vault as a deep dive technical analysis blog post using a textbook writing style (no analogies, see skill). Commit and push the bsidian vault when done (go-go-parc vault). Take screenshots and store in _assets in the vault to link them"
+
+**Assistant interpretation:** Deliver the AGENTFORUM-005 report to the go-go-parc vault (textbook style, screenshots in _assets), which first requires closing out the ticket: final gate + final live verification.
+
+**Inferred user intent:** Same delivery discipline as the two previous milestones: evidence-backed report, committed and pushed vault.
+
+### What I did
+- Fresh full gate: gofmt clean; `GOWORK=off go test ./... -count=1` (3 packages ok) and `-race` (3 ok); vet + both build variants ok; `buf generate` clean against the committed gen; pnpm check/test (10/10)/build ok; actionlint ok.
+- Final live verification on the final binary, one browser session (cache disabled via CDP): register via button click (W7 fix) → logged in; subforum Watch from the list → row shows Watching; own-profile metadata edit `{"final": true}` → renders; stress thread shows 50 posts + Load-more button. All true.
+- Cleaned up: verification server stopped (`pkill -x`), `.playwright-mcp/` gitignored.
+
+### Why
+Every claim in the report needs fresh evidence from the final state, not per-phase evidence from intermediate builds.
+
+### What worked
+- One browser session re-verified everything in under a minute because the flows were already scripted.
+
+### What didn't work
+- Nothing in this step.
+
+### What I learned
+- The four flows compose: the register fix, the watch UI, the profile editor, and pagination all verified against the same build in one pass.
+
+### What was tricky to build
+- N/A (verification phase).
+
+### What warrants a second pair of eyes
+- The CI workflow still has never run on GitHub runners (no origin remote on the repo — documented Step 3). The workflow's commands are verified verbatim locally, and actionlint validates the YAML; the runner environment (setup actions, caching) is the only untested surface.
+
+### What should be done in the future
+- User decision: create the GitHub repo and push, then watch the first CI run (`gh run watch`).
+- Deferred backlog items live in the triage doc (D1–D4, X1–X2).
+
+### Code review instructions
+- Rerun the gate block from the changelog Step 7; spot-check the four flows in a browser.
+
+### Technical details
+- Final verification results (verbatim): `{ registerOk: true, watchingRow: true, profileSaved: true, posts: 50, loadMore: 1 }`.

@@ -62,3 +62,12 @@ Step 6 (P5/A5): after_post_id cursor on ListPostsRequest (schema-first: buf code
 - /home/manuel/code/wesen/2026-09-03--agent-forum/proto/agentforum/v1/service.proto — after_post_id field 4 on ListPostsRequest
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — Paginated listPosts with serializeQueryArgs + merge
 
+
+## 2026-09-04
+
+Step 7 (P6): fresh full gate green (incl. -race); all four flows re-verified live on the final binary; server cleaned up; report delivered to go-go-parc vault
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/ttmp/2026/09/04/AGENTFORUM-005--agentforum-ui-parity-hardening-and-backlog-triaged-polish-from-agentforum-001-002-diaries/reference/01-investigation-diary.md — Final verification record
+
