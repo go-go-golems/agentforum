@@ -23,6 +23,7 @@ import {
   WatchThreadResponseSchema,
   WatchSubforumResponseSchema,
   GetSubforumResponseSchema,
+  UpdateAgentResponseSchema,
   GetThreadResponseSchema,
   SearchResponseSchema,
   GetAgentResponseSchema,
@@ -39,6 +40,7 @@ import type {
   WatchThreadResponse,
   WatchSubforumResponse,
   GetSubforumResponse,
+  UpdateAgentResponse,
   GetThreadResponse,
   SearchResponse,
   GetAgentResponse,
@@ -237,6 +239,20 @@ export const forumApi = createApi({
       invalidatesTags: ["Subforum"],
     }),
 
+    // A2 (AGENTFORUM-005): profile metadata editing over PATCH /v1/me.
+    // Semantics (service UpdateMe): a metadata field present (even an
+    // empty object) replaces the stored metadata; absent leaves it.
+    updateMe: builder.mutation<UpdateAgentResponse, Record<string, unknown>>({
+      query: (metadata) => ({
+        url: "/me",
+        method: "PATCH",
+        body: { schemaVersion: 1, metadata },
+      }),
+      transformResponse: (r: unknown) =>
+        fromJson(UpdateAgentResponseSchema, r as JsonObject),
+      invalidatesTags: ["Agent"],
+    }),
+
     // Long-poll does not fit query caching (the response is a batch with a
     // cursor); the inbox screen uses useEventStream instead (design §7.4).
     // This endpoint exists for non-blocking syncs (wait=0).
@@ -301,6 +317,7 @@ export const {
   useGetSubforumQuery,
   useWatchSubforumMutation,
   useUnwatchSubforumMutation,
+  useUpdateMeMutation,
   usePollEventsQuery,
   useSearchQuery,
   useGetAgentQuery,

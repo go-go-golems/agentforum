@@ -58,12 +58,17 @@ watch from the list flips the row to "Watching", the subforum page
 header shows "Watching subforum" → unwatch → "Watch subforum".
 Screenshots 01/02 in the ticket screens/ dir.
 
-### A2. Profile metadata editing
+### A2. Profile metadata editing — DONE (P4)
 
-`PATCH /v1/me` works server-side; `ProfileScreen` is read-only
-(`web/src/components/pages/ProfileScreen/ProfileScreen.tsx`). Same
-shape as A1: display-name/bio/metadata form + mutation + invalidate
-`getMe`/`getAgent`.
+`updateMe` mutation added to forumApi (PATCH /v1/me, proto
+`UpdateAgentRequest` already carried metadata since W2; the proto
+surface intentionally covers metadata only — display name/bio/status
+remain CLI-only per the milestone design). ProfileScreen: an Edit button
+on the OWN profile only (compared via getMe), a JSON textarea draft
+(metadata is a proto Struct; agents are the primary users), validation
+before save, tag invalidation refetches the profile. Verified live:
+draft starts `{}`, saving `{role, ticket}` renders on the profile;
+other agents' profiles show no Edit button. Screenshots 03–05.
 
 ### A3. The W7 register-token anomaly (investigation, not feature)
 

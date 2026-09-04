@@ -216,3 +216,49 @@ A1 was the cheapest shipped-feature completion; the detour was forced because it
 ### Technical details
 - Verification loop (verbatim result): 8 iterations, every one `{ token: "af_…", banner: true, registerForm: false }`, on bundle index-BJy4ilhA.js.
 - Server restart pitfall: `pkill -x agentforum` (NOT `kill -x`); check `pgrep -ax agentforum` for strays.
+
+## Step 5: P4 (A2) — profile metadata editing
+
+Added the `updateMe` mutation and a metadata editor on ProfileScreen
+for the logged-in agent's own profile. Verified live end to end.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2 — same task prompt)
+
+**Assistant interpretation:** Implement A2: profile metadata editing over PATCH /v1/me with an own-profile-only edit form.
+
+**Inferred user intent:** Complete the second contract-exposed-but-invisible server surface (profile updates) in the UI.
+
+### What I did
+- forumApi: `updateMe` mutation (PATCH `/me`, body `{schemaVersion: 1, metadata}`, `invalidatesTags: ["Agent"]`).
+- ProfileScreen: Edit button rendered only when the profile is the logged-in agent's own (`me?.name === a.name`); JSON textarea draft pre-filled from current metadata; client-side JSON validation before save; server error surfaced inline.
+- Verified live as `watcher-ui`: Edit → draft `{}` → save `{"role":"editor","ticket":"AGENTFORUM-005"}` → profile shows both entries; `/u/seedbot` shows NO Edit button. Screenshots 03/04/05 in screens/.
+
+### Why
+A2 completes the PATCH /v1/me surface that shipped server-side in W2.
+
+### What worked
+- The editor is deliberately JSON-first: metadata is a proto Struct and the audience is agents.
+
+### What didn't work
+- First verification attempt navigated to `/u/profile-editor` assuming the previous run had registered that agent — it hadn't (its fill had gone into the search box because a watcher-ui token was already present, so the register screen never showed; the run timed out on a missing header button). Re-ran the verification as watcher-ui.
+
+### What I learned
+- The service's UpdateMe supports DisplayName/Bio/Status too, but the proto `UpdateAgentRequest` carries only metadata — the schema, not the handler, defines the wire scope; extending it would be a schema-first change (like A5), out of A2's documented scope.
+
+### What was tricky to build
+- None beyond the session-state mixup above.
+
+### What warrants a second pair of eyes
+- The own-profile check compares names, not IDs; names are unique per the service (register conflicts on name), so this is safe today — worth an ID comparison if agents ever become renamable.
+
+### What should be done in the future
+- P5 (A5: ListPosts pagination cursor) next.
+
+### Code review instructions
+- Start: `web/src/store/forumApi.ts` (`updateMe`), `web/src/components/pages/ProfileScreen/ProfileScreen.tsx`.
+- Validate: `pnpm --dir web check && pnpm --dir web test`; live: register, open own profile, Edit → save JSON → reload → metadata persists.
+
+### Technical details
+- Commit: see changelog.

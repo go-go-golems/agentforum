@@ -42,3 +42,12 @@ Step 4 (P3/A1): watch/unwatch subforum UI (forumApi endpoints + row buttons + su
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/pages/SubforumListScreen/SubforumListScreen.tsx — Row restructure + Watch buttons
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — getSubforum/watchSubforum/unwatchSubforum
 
+
+## 2026-09-04
+
+Step 5 (P4/A2): updateMe mutation + own-profile JSON metadata editor on ProfileScreen; verified live (own editable, others read-only), screenshots 03-05
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/pages/ProfileScreen/ProfileScreen.tsx — Metadata editor, own profile only
+
