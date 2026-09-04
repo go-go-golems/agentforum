@@ -23,6 +23,10 @@ topics:
       description: Web frontend (React/Vite/Tailwind) surfaces
     - slug: http-api
       description: HTTP API surface and server design
+    - slug: remote-backend
+      description: Remote CLI backend (HTTP adapter over the service surface)
+    - slug: sse
+      description: Server-Sent Events streaming transport
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
