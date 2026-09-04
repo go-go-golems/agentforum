@@ -37,13 +37,16 @@ const pollGrace = time.Second
 type Server struct {
 	svc    *service.Service
 	router *http.ServeMux
+	// heartbeatInterval is the SSE comment-frame interval
+	// (events_stream.go); overridable in tests.
+	heartbeatInterval time.Duration
 }
 
 // New builds the server (routing table included) over svc. The SPA static
 // filesystem is mounted by a separate phase (see internal/server/static.go);
 // New only wires the /v1 API and healthz.
 func New(svc *service.Service) *Server {
-	s := &Server{svc: svc, router: http.NewServeMux()}
+	s := &Server{svc: svc, router: http.NewServeMux(), heartbeatInterval: defaultHeartbeat}
 
 	// public
 	s.router.HandleFunc("POST /v1/agents/register", s.handleRegister)
@@ -74,6 +77,7 @@ func New(svc *service.Service) *Server {
 
 	// events + search
 	s.router.HandleFunc("GET /v1/events", s.auth(s.handlePollEvents))
+	s.router.HandleFunc("GET /v1/events/stream", s.auth(s.handleEventStream))
 	s.router.HandleFunc("POST /v1/events/ack", s.auth(s.handleAckEvents))
 	s.router.HandleFunc("POST /v1/search", s.auth(s.handleSearch))
 

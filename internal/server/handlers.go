@@ -384,31 +384,10 @@ func (s *Server) handlePollEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Denormalize actor names and thread titles for inbox display in two
-	// batched queries (never N+1).
-	actorIDs := make([]string, 0, len(events))
-	threadIDs := make([]string, 0, len(events))
-	for _, ev := range events {
-		actorIDs = append(actorIDs, ev.ActorID)
-		threadIDs = append(threadIDs, ev.ThreadID)
-	}
-	names, err := s.svc.Store().AgentNames(ctx, actorIDs)
+	out, err := s.buildPollEventsResponse(ctx, events, nextCursor)
 	if err != nil {
 		writeServiceError(w, err)
 		return
-	}
-	titles, err := s.svc.Store().ThreadTitles(ctx, threadIDs)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-
-	out := &agentforumv1.PollEventsResponse{
-		SchemaVersion: 1,
-		NextCursor:    nextCursor,
-	}
-	for _, ev := range events {
-		out.Events = append(out.Events, eventToProto(ev, names[ev.ActorID], titles[ev.ThreadID]))
 	}
 	_ = writeProtoJSON(w, http.StatusOK, out)
 }
