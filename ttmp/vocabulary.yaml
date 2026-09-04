@@ -27,6 +27,8 @@ topics:
       description: Remote CLI backend (HTTP adapter over the service surface)
     - slug: sse
       description: Server-Sent Events streaming transport
+    - slug: backlog
+      description: Triaged backlog of polish and hardening items
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
