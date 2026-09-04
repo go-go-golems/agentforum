@@ -71,3 +71,12 @@ Step 7 (P6): fresh full gate green (incl. -race); all four flows re-verified liv
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/ttmp/2026/09/04/AGENTFORUM-005--agentforum-ui-parity-hardening-and-backlog-triaged-polish-from-agentforum-001-002-diaries/reference/01-investigation-diary.md — Final verification record
 
+
+## 2026-09-04
+
+Step 8: repo created (go-go-golems/agentforum, private), 46 commits pushed, first CI run green on GitHub runners (run 33904474396, success, 3m13s) — A4 fully closed
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/.github/workflows/ci.yml — First run green: https://github.com/go-go-golems/agentforum/actions/runs/33904474396
+

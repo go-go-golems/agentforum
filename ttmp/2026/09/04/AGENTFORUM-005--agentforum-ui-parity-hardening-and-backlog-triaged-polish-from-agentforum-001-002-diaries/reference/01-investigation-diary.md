@@ -361,3 +361,50 @@ Every claim in the report needs fresh evidence from the final state, not per-pha
 
 ### Technical details
 - Final verification results (verbatim): `{ registerOk: true, watchingRow: true, profileSaved: true, posts: 50, loadMore: 1 }`.
+
+## Step 8: A4 closed — repo created, pushed, first CI run green on GitHub
+
+The user continued the goal; the module path (`github.com/go-go-golems/agentforum`)
+declares the intended remote, and the vault already pushes to the
+go-go-golems org — so the blocker (no origin) was resolved by creating the
+repository as **private** and pushing all 46 commits.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Continue working toward the active thread goal. ... Before marking the goal complete, audit progress against the objective and call update_goal ... only when every requirement is verified."
+
+**Assistant interpretation:** Resolve the one remaining goal requirement: push the repo and obtain a green CI run on GitHub.
+
+**Inferred user intent:** The goal's completion evidence required the CI workflow to run green on GitHub; the missing origin was the last blocker.
+
+### What I did
+- `gh repo create go-go-golems/agentforum --private --source . --remote origin --push` — repo created, 46 commits pushed, `main` tracking `origin/main`.
+- Watched the first CI run (`gh run watch --exit-status`): **conclusion "success"** in 3m13s (started 2026-09-04T18:10:35Z, run https://github.com/go-go-golems/agentforum/actions/runs/33904474396, head b1f101e). Every gate step green on GitHub runners: gofmt, go vet, go test, go build, buf codegen drift (buf action installed and ran clean), pnpm install/check/test/build, embed-tagged build.
+- This closes the diary Step 3 open item (the workflow had never executed on runners).
+
+### Why
+The goal required the workflow to pass on GitHub where observable; until now it was validated only by actionlint and verbatim local runs.
+
+### What worked
+- The workflow ran green on the first attempt — the verbatim-local-validation method (running each step's command exactly as written) transferred perfectly to the runner environment.
+
+### What didn't work
+- Two annotations (warnings, not failures): (1) the pinned action versions (checkout@v4, setup-go@v5, setup-node@v4, buf-setup-action@v1, pnpm/action-setup@v4) target Node.js 20 and are forced onto Node 24 by the runner — a future deprecation to re-pin, not a current failure; (2) buf-setup-action without `github_token` uses stricter API rate limiting — harmless for one install per run, could pass `with: github_token` later.
+
+### What I learned
+- Creating the remote resolved the push requirement and the CI verification in one step; nothing in the workflow needed adjustment for the runner environment.
+
+### What was tricky to build
+- None in this step.
+
+### What warrants a second pair of eyes
+- The two annotations above are the entire maintenance surface of the workflow right now.
+
+### What should be done in the future
+- Re-pin the five actions when GitHub removes Node 20 forcing (watch the deprecation changelog).
+
+### Code review instructions
+- Check the run: `gh run view 33904474396 --repo go-go-golems/agentforum`.
+
+### Technical details
+- Repo: https://github.com/go-go-golems/agentforum (private). Run conclusion JSON: `{"conclusion":"success", ...}`. 46 commits on main at b1f101e.
