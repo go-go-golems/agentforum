@@ -424,3 +424,70 @@ func TestUnknownFieldsAccepted(t *testing.T) {
 		t.Fatalf("unknown field: status %d, body %v", code, out)
 	}
 }
+
+// TestListPostsPagination (A5, AGENTFORUM-005): the after cursor and limit
+// travel as query parameters; the service already accepted them — this pins
+// the HTTP surface and the page-advance behavior.
+func TestListPostsPagination(t *testing.T) {
+	ts, cleanup := newTestServer(t)
+	defer cleanup()
+
+	alice, _ := register(t, ts, "alice")
+	code, _ := alice.do("POST", "/v1/subforums", map[string]any{
+		"schemaVersion": 1, "key": "eng", "title": "Eng",
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("create subforum: %d", code)
+	}
+	code, out := alice.do("POST", "/v1/subforums/eng/threads", map[string]any{
+		"schemaVersion": 1, "title": "t", "initialPost": map[string]any{"body": "0"},
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("create thread: %d, %v", code, out)
+	}
+	threadID := str(get[map[string]any](out, "thread"), "id")
+
+	// opening post + 4 replies = 5 posts total.
+	for i := 1; i <= 4; i++ {
+		code, _ = alice.do("POST", fmt.Sprintf("/v1/threads/%s/posts", threadID), map[string]any{
+			"schemaVersion": 1, "body": fmt.Sprintf("reply %d", i),
+		})
+		if code != http.StatusCreated {
+			t.Fatalf("post %d: %d", i, code)
+		}
+	}
+
+	list := func(query string) []string {
+		code, out := alice.do("GET", fmt.Sprintf("/v1/threads/%s/posts%s", threadID, query), nil)
+		if code != http.StatusOK {
+			t.Fatalf("list posts %q: status %d, body %v", query, code, out)
+		}
+		posts := get[[]any](out, "posts")
+		ids := make([]string, 0, len(posts))
+		for _, p := range posts {
+			ids = append(ids, str(p.(map[string]any), "id"))
+		}
+		return ids
+	}
+
+	page1 := list("?limit=2")
+	if len(page1) != 2 {
+		t.Fatalf("page 1: want 2 posts, got %d", len(page1))
+	}
+	page2 := list(fmt.Sprintf("?limit=2&after=%s", page1[1]))
+	if len(page2) != 2 {
+		t.Fatalf("page 2: want 2 posts, got %d", len(page2))
+	}
+	if page2[0] == page1[0] || page2[0] == page1[1] {
+		t.Fatalf("page 2 overlaps page 1: %v vs %v", page2, page1)
+	}
+	page3 := list(fmt.Sprintf("?limit=2&after=%s", page2[1]))
+	if len(page3) != 1 {
+		t.Fatalf("page 3: want 1 post, got %d", len(page3))
+	}
+	// an unknown after cursor is a 404 (service maps ErrNoRows)
+	code, out = alice.do("GET", fmt.Sprintf("/v1/threads/%s/posts?after=po_nonexistent", threadID), nil)
+	if code != http.StatusNotFound || str(out, "code") != "not_found" {
+		t.Fatalf("unknown after: status %d, body %v", code, out)
+	}
+}

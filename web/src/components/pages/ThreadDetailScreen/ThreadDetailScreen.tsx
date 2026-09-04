@@ -3,7 +3,7 @@
  * watch toggle, and the composer. The composer generates an idempotency
  * key per submit attempt (design §7.3) so double-clicks cannot double-post.
  */
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useCreatePostMutation,
@@ -13,6 +13,7 @@ import {
   useWatchThreadMutation,
 } from "../../../store/forumApi";
 import { PostStream } from "../../organisms/PostStream/PostStream";
+import { POSTS_PAGE_SIZE } from "../../../store/forumApi";
 import { BreadcrumbBar } from "../../molecules/BreadcrumbBar/BreadcrumbBar";
 import { Button } from "../../atoms/Button/Button";
 import { Caption } from "../../foundation/Caption/Caption";
@@ -24,7 +25,10 @@ export const ThreadDetailScreen: React.FC = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { data: threadData } = useGetThreadQuery(id);
-  const { data: postsData } = useListPostsQuery(id);
+  // A5: paginated posts — `after` advances to the last loaded post's id;
+  // pages merge in the RTK cache (see forumApi listPosts).
+  const [postsAfter, setPostsAfter] = useState<string | undefined>(undefined);
+  const { data: postsData } = useListPostsQuery({ threadId: id, after: postsAfter });
   const [watchThread] = useWatchThreadMutation();
   const [unwatchThread] = useUnwatchThreadMutation();
   const [createPost, { isLoading: posting }] = useCreatePostMutation();
@@ -36,6 +40,18 @@ export const ThreadDetailScreen: React.FC = () => {
 
   const thread = threadData?.thread;
   const posts = postsData?.posts ?? [];
+
+  // A full last page means "maybe more": track how much the latest fetch
+  // added (merged pages share one array that only grows).
+  const prevLen = useRef(0);
+  const [hasMore, setHasMore] = useState(false);
+  useEffect(() => {
+    const len = posts.length;
+    if (len > prevLen.current) {
+      setHasMore(len - prevLen.current >= POSTS_PAGE_SIZE);
+      prevLen.current = len;
+    }
+  }, [posts.length]);
 
   const jumpTo = (postId: string) => {
     const el = document.getElementById(`post-${postId}`);
@@ -113,6 +129,16 @@ export const ThreadDetailScreen: React.FC = () => {
       )}
 
       <PostStream posts={posts} onJumpTo={jumpTo} onReply={setReplyTo} />
+      {hasMore && (
+        <div className="flex justify-center py-2 border-b border-[var(--color-panel-dark)]">
+          <Button
+            size="sm"
+            onClick={() => setPostsAfter(posts[posts.length - 1]?.id)}
+          >
+            Load more posts ({posts.length} loaded)
+          </Button>
+        </div>
+      )}
 
       {/* ── Composer ── */}
       <form onSubmit={submit} className="retro-window p-2 mt-3 flex flex-col gap-2">

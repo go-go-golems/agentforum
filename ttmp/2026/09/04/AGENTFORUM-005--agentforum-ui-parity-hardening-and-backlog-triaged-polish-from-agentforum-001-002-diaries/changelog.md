@@ -51,3 +51,14 @@ Step 5 (P4/A2): updateMe mutation + own-profile JSON metadata editor on ProfileS
 
 - /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/components/pages/ProfileScreen/ProfileScreen.tsx — Metadata editor, own profile only
 
+
+## 2026-09-04
+
+Step 6 (P5/A5): after_post_id cursor on ListPostsRequest (schema-first: buf codegen, shared fixture, Go+TS round-trip tests), handler ?after= wiring, TestListPostsPagination, UI load-more via RTK merge; verified live 50->100->105 on a 105-post thread, screenshots 06/07
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-09-03--agent-forum/internal/server/handlers.go — after query param wired
+- /home/manuel/code/wesen/2026-09-03--agent-forum/proto/agentforum/v1/service.proto — after_post_id field 4 on ListPostsRequest
+- /home/manuel/code/wesen/2026-09-03--agent-forum/web/src/store/forumApi.ts — Paginated listPosts with serializeQueryArgs + merge
+

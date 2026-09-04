@@ -112,12 +112,23 @@ clean and every step's command run verbatim locally, all green. Open
 item: the repo has no origin remote, so a live green GitHub run awaits
 the user's decision to create/push the repo.
 
-### A5. `ListPosts` pagination cursor over HTTP
+### A5. `ListPosts` pagination cursor over HTTP — DONE (P5)
 
-`ListPostsRequest` (proto) lacks the `after` field the service accepts
-(`internal/service/posts.go`). The UI loads a thread in one shot; long
-threads pay full cost. Small proto addition + handler wiring + UI
-"load more" — schema-first, so it also exercises the codegen path.
+`after_post_id = 4` added to `ListPostsRequest` (schema-first: buf
+codegen, shared fixture `list_posts_request.json`, round-trip tests in
+Go and TS); handler maps `?after=`; `TestListPostsPagination` pins
+pages 2/2/1 and the 404 on an unknown cursor. UI: `listPosts` paginates
+in pages of 50 via RTK `serializeQueryArgs` + `merge` (one cache entry
+per thread, pages deduped, invalidation refetches only after the
+cursor); ThreadDetailScreen gets a "Load more posts" button that
+disappears when the last page is short. Verified live on a 105-post
+thread: 50 → 100 → 105, button gone. Screenshots 06/07.
+
+Known edge (pre-existing, unchanged): the store cursor is
+`created_at > cursor_created_at` while ordering is
+`(created_at, id)` — posts sharing a nanosecond timestamp could be
+skipped; recorded here rather than fixed (nanosecond timestamps make
+collisions rare; a fix needs a tuple-comparison cursor).
 
 ## 3. D — Defer (recorded, not owed)
 

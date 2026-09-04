@@ -262,3 +262,56 @@ A2 completes the PATCH /v1/me surface that shipped server-side in W2.
 
 ### Technical details
 - Commit: see changelog.
+
+## Step 6: P5 (A5) — ListPosts pagination cursor through the schema-first workflow
+
+Added the `after_post_id` cursor to `ListPostsRequest`, wired it through
+the handler, pinned it with shared fixtures and both-language round-trip
+tests plus an HTTP pagination test, and built the UI load-more over RTK
+Query page merging. Verified live on a 105-post thread.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 2 — same task prompt)
+
+**Assistant interpretation:** Implement A5: expose the service's after-cursor over HTTP and paginate the thread view in the UI.
+
+**Inferred user intent:** Long threads should not load in one shot; the schema-first path must be exercised properly (proto first, codegen, fixtures, both-language tests).
+
+### What I did
+- Proto: `after_post_id = 4` on `ListPostsRequest`; `buf generate proto` (Go + TS).
+- Handler: `?after=` query parameter → service `ListPosts` after-cursor (the service accepted it since AGENTFORUM-001; the handler had hardcoded "").
+- Fixtures/tests: `testdata/protojson/list_posts_request.json` + `TestListPostsRequestJSONShape` (Go) + a TS round-trip case; `TestListPostsPagination` over HTTP (pages 2/2/1, unknown cursor → 404 `not_found`).
+- UI: `listPosts` now takes `{threadId, after?}` with `limit=50`; one cache entry per thread (`serializeQueryArgs` on the thread id), pages merged and deduped by post id, `forceRefetch` when `after` changes; ThreadDetailScreen keeps an `after` cursor state and a "Load more posts (N loaded)" button that hides when the last page came in short.
+- Verified live: seeded 105 posts via curl; UI shows 50 → click → 100 → click → 105, button disappears. Screenshots 06/07 in screens/.
+
+### Why
+A5 was the remaining real gap between the service surface and the wire/UI.
+
+### What worked
+- The RTK merge pattern keeps invalidation correct for free: a new reply (tag invalidation) refetches only posts after the cursor and appends.
+
+### What didn't work
+- tsc errors during assembly (verbatim): `error TS2300: Duplicate identifier 'Button'` (double import in ThreadDetailScreen), `error TS2339: Property 'query' does not exist` (serializeQueryArgs destructures `queryArgs`, not `query`), `error TS2459: Module ... declares 'POSTS_PAGE_SIZE' locally, but it is not exported`. All fixed; also `code, out := ...` → `code, out = ...` in the Go test (no new variables on the second assignment).
+- `require is not defined` in the Playwright snippet (sandbox has no CommonJS) — inlined the thread id instead.
+
+### What I learned
+- `serializeQueryArgs` in RTK Query v2 destructures `queryArgs` (not `query`) — the v1 docs' shape is stale.
+- hasMore cannot be derived from the merged cache length alone (an exactly-divisible total would loop the button); tracking the delta of the last fetch via a ref is the honest heuristic.
+
+### What was tricky to build
+- The merge function mutates the cached `current` PostList, so `data.posts` is one growing array; effects keyed on `posts.length` must handle the initial fetch and appends without treating a pure re-render as a new page.
+- The store's after-cursor (`created_at > cursor_time`) does not tie-break on id while the ORDER BY does — a same-nanosecond pair could skip a post. Pre-existing; noted in the triage doc instead of changing store semantics in a UI ticket.
+
+### What warrants a second pair of eyes
+- The `hasMore` heuristic (delta >= 50) assumes every fetch advances by whole pages; a background invalidation fetching 3 new posts resets `hasMore` to false even though 47 more might exist. In practice new replies arrive after the cursor and the next "load more" click refetches with the new cursor — but a user who posts 1 reply and then clicks Load more would get a 50-post page fetch (still correct, just fetches more than the delta). Acceptable; revisit if the button ever flickers wrongly.
+
+### What should be done in the future
+- Final gate + delivery (P6); consider the tuple-comparison cursor in a store ticket.
+
+### Code review instructions
+- Start: `proto/agentforum/v1/service.proto` (field 4), `internal/server/handlers.go` (handleListPosts), `web/src/store/forumApi.ts` (listPosts), `web/src/components/pages/ThreadDetailScreen/ThreadDetailScreen.tsx` (cursor state + button).
+- Validate: `GOWORK=off go test ./internal/server/ -run TestListPostsPagination -count=1 -v`; `pnpm --dir web check && pnpm --dir web test`; live: open a >50-post thread, click Load more twice.
+
+### Technical details
+- Commit: see changelog. Live verification numbers: 50 loaded initially, 100 after first click, 105 after second, button count 0 at the end.

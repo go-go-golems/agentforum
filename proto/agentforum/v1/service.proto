@@ -155,6 +155,7 @@ message ListPostsRequest {
   uint32 schema_version = 1;
   string thread_id = 2;
   int32 limit = 3;  // 0 = default
+  string after_post_id = 4;  // po_... cursor; "" = from the start (A5)
 }
 
 message PostList {

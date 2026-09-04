@@ -192,3 +192,15 @@ func TestUnmarshalAcceptsInt64AsStringAndNumber(t *testing.T) {
 		t.Errorf("number cursor decoded to %d, want 45", resp.NextCursor)
 	}
 }
+
+func TestListPostsRequestJSONShape(t *testing.T) {
+	// A5 (AGENTFORUM-005): the pagination cursor travels as afterPostId on
+	// the wire; the handler maps it from the ?after= query parameter.
+	req := &agentforumv1.ListPostsRequest{
+		SchemaVersion: 1,
+		ThreadId:      "th_01M1P8Z2X3",
+		Limit:         50,
+		AfterPostId:   "po_01M1P9A4B5",
+	}
+	roundTrip(t, req, "list_posts_request.json")
+}

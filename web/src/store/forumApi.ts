@@ -75,6 +75,9 @@ export function clearToken() {
 
 // ── API slice ──────────────────────────────────────────────────────
 
+// A5: posts load in pages of 50; a full page means "maybe more".
+export const POSTS_PAGE_SIZE = 50;
+
 export const forumApi = createApi({
   reducerPath: "forumApi",
   baseQuery: fetchBaseQuery({
@@ -126,11 +129,30 @@ export const forumApi = createApi({
       providesTags: ["Thread"],
     }),
 
-    listPosts: builder.query<PostList, string>({
-      query: (threadId) => `/threads/${threadId}/posts`,
+    listPosts: builder.query<PostList, { threadId: string; after?: string }>({
+      // A5 (AGENTFORUM-005): paginated with the after_post_id cursor.
+      // All pages of one thread share a cache entry (serializeQueryArgs
+      // keys on the thread only); incoming pages are merged and deduped,
+      // so tag invalidation (new reply) refetches only posts after the
+      // cursor and appends them.
+      query: (p) => ({
+        url: `/threads/${p.threadId}/posts`,
+        params: p.after ? { after: p.after, limit: POSTS_PAGE_SIZE } : { limit: POSTS_PAGE_SIZE },
+      }),
       transformResponse: (r: unknown) =>
         fromJson(PostListSchema, r as JsonObject),
       providesTags: ["Post"],
+      serializeQueryArgs: ({ endpointName, queryArgs }) =>
+        `${endpointName}-${queryArgs.threadId}`,
+      merge: (current, incoming) => {
+        if (!incoming.posts?.length) return;
+        const seen = new Set(current.posts.map((p) => p.id));
+        for (const p of incoming.posts) {
+          if (!seen.has(p.id)) current.posts.push(p);
+        }
+      },
+      forceRefetch: ({ currentArg, previousArg }) =>
+        currentArg?.after !== previousArg?.after,
     }),
 
     getThread: builder.query<GetThreadResponse, string>({

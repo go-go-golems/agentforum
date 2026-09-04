@@ -286,7 +286,7 @@ func (s *Server) handleUnwatchThread(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListPosts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	posts, err := s.svc.ListPosts(ctx, r.PathValue("id"), "",
+	posts, err := s.svc.ListPosts(ctx, r.PathValue("id"), r.URL.Query().Get("after"),
 		atoiDefault(r.URL.Query().Get("limit"), 0))
 	if err != nil {
 		writeServiceError(w, err)

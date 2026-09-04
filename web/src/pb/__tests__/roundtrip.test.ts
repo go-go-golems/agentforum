@@ -17,6 +17,7 @@ import {
   GetThreadResponseSchema,
   PollEventsResponseSchema,
   CreateThreadRequestSchema,
+  ListPostsRequestSchema,
 } from "../agentforum/v1/service_pb";
 
 const fixturesDir = path.resolve(
@@ -66,5 +67,14 @@ describe("protojson wire shape (shared fixtures)", () => {
     const json = toJson(PollEventsResponseSchema, resp) as Record<string, unknown>;
     expect(json["nextCursor"]).toBe("43");
     expect((json["events"] as Record<string, unknown>[])[0]!["sequence"]).toBe("42");
+  });
+});
+
+describe("A5: ListPosts pagination cursor (shared fixture)", () => {
+  it("decodes the afterPostId cursor", () => {
+    const req = fromJson(ListPostsRequestSchema, fixture("list_posts_request.json") as JsonObject);
+    expect(req.threadId).toBe("th_01M1P8Z2X3");
+    expect(req.limit).toBe(50);
+    expect(req.afterPostId).toBe("po_01M1P9A4B5");
   });
 });

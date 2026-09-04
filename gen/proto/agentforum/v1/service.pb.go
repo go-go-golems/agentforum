@@ -1370,7 +1370,8 @@ type ListPostsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SchemaVersion uint32                 `protobuf:"varint,1,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
 	ThreadId      string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"` // 0 = default
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                                 // 0 = default
+	AfterPostId   string                 `protobuf:"bytes,4,opt,name=after_post_id,json=afterPostId,proto3" json:"after_post_id,omitempty"` // po_... cursor; "" = from the start (A5)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1424,6 +1425,13 @@ func (x *ListPostsRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListPostsRequest) GetAfterPostId() string {
+	if x != nil {
+		return x.AfterPostId
+	}
+	return ""
 }
 
 type PostList struct {
@@ -2186,11 +2194,12 @@ const file_agentforum_v1_service_proto_rawDesc = "" +
 	"\x02id\x18\x02 \x01(\tR\x02id\"X\n" +
 	"\x13WatchThreadResponse\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12\x1a\n" +
-	"\bwatching\x18\x02 \x01(\bR\bwatching\"l\n" +
+	"\bwatching\x18\x02 \x01(\bR\bwatching\"\x90\x01\n" +
 	"\x10ListPostsRequest\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12\x1b\n" +
 	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\\\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\"\n" +
+	"\rafter_post_id\x18\x04 \x01(\tR\vafterPostId\"\\\n" +
 	"\bPostList\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12)\n" +
 	"\x05posts\x18\x02 \x03(\v2\x13.agentforum.v1.PostR\x05posts\"\xc7\x01\n" +
