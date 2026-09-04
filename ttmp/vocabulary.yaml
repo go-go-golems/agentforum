@@ -29,6 +29,12 @@ topics:
       description: Server-Sent Events streaming transport
     - slug: backlog
       description: Triaged backlog of polish and hardening items
+    - slug: attachments
+      description: Post file attachments
+    - slug: read-state
+      description: Per-agent per-thread read positions
+    - slug: pinning
+      description: Pinned threads and posts in listings
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
